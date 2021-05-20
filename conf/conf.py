@@ -86,7 +86,7 @@ class Conf(object):
         self.batch_size = y.get('BATCH_SIZE', 1)  # type: int
         self.test_len = y.get('TEST_LEN', 128)  # type: int
         self.epoch_len = y.get('EPOCH_LEN', 1024)  # type: int
-        self.jta_path = y.get('JTA_PATH', None)  # type: str
+        self.mot_synth_path = y.get('MOTSYNTH_PATH', None)  # type: str
 
         if y.get('DEVICE', None) is not None and y['DEVICE'] != 'cpu':
             os.environ['CUDA_VISIBLE_DEVICES'] = str(y.get('DEVICE').split(':')[1])
@@ -96,5 +96,5 @@ class Conf(object):
         else:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.jta_path = Path(self.jta_path)
-        assert self.jta_path.exists(), 'the specified directory for the JTA-Dataset does not exists'
+        self.mot_synth_path = Path(self.mot_synth_path)
+        assert self.mot_synth_path.exists(), 'the specified directory for the MOTS-Dataset does not exists'
