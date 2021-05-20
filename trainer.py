@@ -17,7 +17,7 @@ from torchvision import transforms
 
 import utils
 from conf import Conf
-from dataset.jta_hmap_ds import JTAHMapDS
+from dataset.mot_synth_ds import MOTSynthDS
 from test_metrics import joint_det_metrics
 from models.vha import Autoencoder
 
@@ -36,13 +36,13 @@ class Trainer(object):
         self.optimizer = optim.Adam(params=self.model.parameters(), lr=cnf.lr)
 
         # init train loader
-        training_set = JTAHMapDS(mode='train', cnf=cnf)
+        training_set = MOTSynthDS(mode='train', cnf=cnf)
         self.train_loader = DataLoader(
             dataset=training_set, batch_size=cnf.batch_size, num_workers=cnf.n_workers, shuffle=True
         )
 
         # init val loader
-        val_set = JTAHMapDS(mode='val', cnf=cnf)
+        val_set = MOTSynthDS(mode='val', cnf=cnf)
         self.val_loader = DataLoader(
             dataset=val_set, batch_size=1, num_workers=cnf.n_workers, shuffle=False
         )
@@ -63,6 +63,8 @@ class Trainer(object):
 
         # possibly load checkpoint
         self.load_ck()
+        dict = torch.load('log/pretrained/best.pth', map_location=torch.device('cpu'))
+        self.model.load_state_dict(dict, strict=True)
 
 
     def load_ck(self):
