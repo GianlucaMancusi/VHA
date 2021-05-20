@@ -8,5 +8,5 @@ N_WORKERS: 4
 BATCH_SIZE: 8
 TEST_LEN: 128
 EPOCH_LEN: 1024
-MOTSYNTH_PATH: 'Z:/Datasets/MOTSynth'
+MOTSYNTH_PATH: 'Z:/Datasets/MOTSynth_clean_2'
 DEVICE: 'cuda:0'

@@ -29,7 +29,7 @@ N_FRAMES_IN_SEQ = 900
 N_SELECTED_FRAMES = 180
 
 # maximum MOTSynth camera distance [m]
-MAX_CAM_DIST = 9999
+MAX_CAM_DIST = 100
 
 Point3D = Tuple[float, float, float]
 Point2D = Tuple[float, float]
@@ -53,9 +53,11 @@ class MOTSynthDS(Dataset):
         self.mode = mode
         assert mode in {'train', 'val', 'test'}, '`mode` must be \'train\' or \'val\''
 
-        self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotation_groups', 'group_0_60.json'))
+        self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
         self.catIds = self.mots_ds.getCatIds(catNms=['person'])
         self.imgIds = self.mots_ds.getImgIds(catIds=self.catIds)
+
+        max_cam_dist = self.get_dataset_max_cam_len()
 
         self.g = (self.cnf.sigma * 5 + 1) if (self.cnf.sigma * 5) % 2 == 0 else self.cnf.sigma * 5
         self.gaussian_patch = utils.gkern(
@@ -95,6 +97,7 @@ class MOTSynthDS(Dataset):
                     continue
 
                 cam_dist = np.sqrt(joint['x3d'] ** 2 + joint['y3d'] ** 2 + joint['z3d'] ** 2)
+                #max_cam_dist = self.get_dataset_max_cam_len()
                 cam_dist = cam_dist * ((self.cnf.hmap_d - 1) / MAX_CAM_DIST)
 
                 center = [
@@ -147,15 +150,31 @@ class MOTSynthDS(Dataset):
         joints = []
         for ann in anns:
             joints.append({
-                'x2d': ann['keypoints'][2 * jtype],
-                'y2d': ann['keypoints'][2 * jtype + 1],
-                'x3d': ann['keypoints_3d'][3 * jtype],
-                'y3d': ann['keypoints_3d'][3 * jtype + 1],
-                'z3d': ann['keypoints_3d'][3 * jtype + 2],
-                'visibility': ann['keypoints_3d'][3 * jtype + 3],
+                'x2d': ann['keypoints'][3 * jtype],
+                'y2d': ann['keypoints'][3 * jtype + 1],
+                'x3d': ann['keypoints_3d'][4 * jtype],
+                'y3d': ann['keypoints_3d'][4 * jtype + 1],
+                'z3d': ann['keypoints_3d'][4 * jtype + 2],
+                'visibility': ann['keypoints_3d'][4 * jtype + 3],
                 # visibility=0: not labeled (in which case x=y=z=0), visibility=1: labeled but not visible, and visibility=2: labeled and visible.
             })
         return joints
+
+    def get_dataset_max_cam_len(self):
+        curr_max = 0
+        for i in range(len(self.imgIds)):
+            img = self.mots_ds.loadImgs(self.imgIds[i])[0]
+
+            # load corresponding data
+            annIds = self.mots_ds.getAnnIds(imgIds=img['id'], catIds=self.catIds, iscrowd=None)
+            anns = self.mots_ds.loadAnns(annIds)
+            for ann in anns:
+                for jtype_index in range(len(ann['keypoints_3d']) // 4):
+                    _max = np.sqrt(ann['keypoints_3d'][jtype_index] ** 2 + ann['keypoints_3d'][jtype_index + 1] ** 2 + \
+                                   ann['keypoints_3d'][jtype_index + 2] ** 2)
+                    curr_max = max(_max, curr_max)
+        return curr_max
+
 
 
 def main():
