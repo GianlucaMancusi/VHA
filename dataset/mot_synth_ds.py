@@ -82,7 +82,7 @@ class MOTSynthDS(Dataset):
 
         # augmentation initialization (rescale + crop)
         h, w, d = self.cnf.hmap_h, self.cnf.hmap_w, self.cnf.hmap_d
-        aug_scale = np.random.uniform(1, 2)
+        aug_scale = np.random.uniform(0.5, 2)
         aug_offset_h = np.random.uniform(0, h * aug_scale - h)
         aug_offset_w = np.random.uniform(0, w * aug_scale - w)
 
@@ -120,7 +120,7 @@ class MOTSynthDS(Dataset):
                 ]
 
                 # ignore the point if due to augmentation the point goes out of the screen
-                if min(center) < 0 or joint['x2d'] > w or joint['y2d'] > h:
+                if min(center) < 0 or joint['x2d'] > w or joint['y2d'] > h or cam_dist > d:
                     continue
 
                 center = center[::-1]
@@ -196,6 +196,8 @@ class MOTSynthDS(Dataset):
     def visualize3djoint_in2d(self, joints, scale=None, draw_rect=None):
         image = np.zeros((self.cnf.hmap_h, self.cnf.hmap_w, 1), np.uint8)
         import cv2
+
+        # draw where we are going to crop
         if draw_rect:
             aug_scale, aug_offset_w, aug_offset_h = draw_rect
             t_l = int(aug_offset_w // aug_scale), int(aug_offset_h // aug_scale)
@@ -224,7 +226,7 @@ def main():
         x, y, _ = sample
         y = json.loads(y[0])
 
-        #utils.visualize_3d_hmap(x[0, 0])
+        utils.visualize_3d_hmap(x[0, 13])
         print(f'({i}) Dataset example: x.shape={tuple(x.shape)}, y={y}')
 
 
