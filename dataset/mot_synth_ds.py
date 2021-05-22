@@ -53,11 +53,11 @@ class MOTSynthDS(Dataset):
         self.mode = mode
         assert mode in {'train', 'val', 'test'}, '`mode` must be \'train\' or \'val\''
 
-        self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10.json'))
+        self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
         self.catIds = self.mots_ds.getCatIds(catNms=['person'])
         self.imgIds = self.mots_ds.getImgIds(catIds=self.catIds)
 
-        #max_cam_dist = self.get_dataset_max_cam_len()
+        # max_cam_dist = self.get_dataset_max_cam_len()
 
         self.g = (self.cnf.sigma * 5 + 1) if (self.cnf.sigma * 5) % 2 == 0 else self.cnf.sigma * 5
         self.gaussian_patch = utils.gkern(
@@ -75,13 +75,16 @@ class MOTSynthDS(Dataset):
 
         # select sequence name and frame number
         img = self.mots_ds.loadImgs(self.imgIds[i])[0]
-        image_H, image_W = img['height'], img['width']
 
         # load corresponding data
         annIds = self.mots_ds.getAnnIds(imgIds=img['id'], catIds=self.catIds, iscrowd=None)
         anns = self.mots_ds.loadAnns(annIds)
 
-
+        # augmentation initialization (rescale + crop)
+        h, w, d = self.cnf.hmap_h, self.cnf.hmap_w, self.cnf.hmap_d
+        aug_scale = np.random.uniform(1, 2)
+        aug_offset_h = np.random.uniform(0, h * aug_scale - h)
+        aug_offset_w = np.random.uniform(0, w * aug_scale - w)
 
         all_hmaps = []
         y = []
@@ -93,20 +96,32 @@ class MOTSynthDS(Dataset):
 
             joints = MOTSynthDS.get_joints_from_anns(anns, jtype)
 
+            self.visualize3djoint_in2d(joints, scale=True, draw_rect=(aug_scale, aug_offset_w, aug_offset_h))
             # for each joint of the same pose jtype
             for joint in joints:
                 if joint['x2d'] < 0 or joint['y2d'] < 0 or joint['x2d'] > 1920 or joint['y2d'] > 1080:
                     continue
 
+                # from GTA space to heatmap space
                 cam_dist = np.sqrt(joint['x3d'] ** 2 + joint['y3d'] ** 2 + joint['z3d'] ** 2)
-                #max_cam_dist = self.get_dataset_max_cam_len()
                 cam_dist = cam_dist * ((self.cnf.hmap_d - 1) / MAX_CAM_DIST)
+                joint['x2d'] /= 8
+                joint['y2d'] /= 8
+
+                # augmentation (rescale + crop)
+                joint['x2d'] = joint['x2d'] * aug_scale - aug_offset_w
+                joint['y2d'] = joint['y2d'] * aug_scale - aug_offset_h
+                cam_dist = cam_dist / aug_scale
 
                 center = [
-                    int(round(joint['x2d'] / 8)),
-                    int(round(joint['y2d'] / 8)),
+                    int(round(joint['x2d'])),
+                    int(round(joint['y2d'])),
                     int(round(cam_dist))
                 ]
+
+                # ignore the point if due to augmentation the point goes out of the screen
+                if min(center) < 0 or joint['x2d'] > w or joint['y2d'] > h:
+                    continue
 
                 center = center[::-1]
 
@@ -141,6 +156,7 @@ class MOTSynthDS(Dataset):
 
                 y.append([USEFUL_JOINTS.index(jtype)] + center)
 
+            self.visualize3djoint_in2d(joints)
             all_hmaps.append(x)
 
         y = json.dumps(y)
@@ -177,6 +193,25 @@ class MOTSynthDS(Dataset):
                     curr_max = max(_max, curr_max)
         return curr_max
 
+    def visualize3djoint_in2d(self, joints, scale=None, draw_rect=None):
+        image = np.zeros((self.cnf.hmap_h, self.cnf.hmap_w, 1), np.uint8)
+        import cv2
+        if draw_rect:
+            aug_scale, aug_offset_w, aug_offset_h = draw_rect
+            t_l = int(aug_offset_w // aug_scale), int(aug_offset_h // aug_scale)
+            b_r = int((self.cnf.hmap_w + aug_offset_w) // aug_scale), int((self.cnf.hmap_h + aug_offset_h) // aug_scale)
+            image = cv2.rectangle(image, t_l, b_r, 60, 2)
+        for joint in joints:
+            x, y = joint['x2d'], joint['y2d']
+            if scale:
+                x, y = x / 8, y / 8
+            x, y = int(round(x)), int(round(y))
+            if x < 0 or y < 0 or x >= self.cnf.hmap_w or y >= self.cnf.hmap_h:
+                continue
+            image[y, x, 0] = 255
+
+        cv2.imshow('image', image)
+        cv2.waitKey(0)
 
 
 def main():
@@ -189,7 +224,7 @@ def main():
         x, y, _ = sample
         y = json.loads(y[0])
 
-        utils.visualize_3d_hmap(x[0, 0])
+        #utils.visualize_3d_hmap(x[0, 0])
         print(f'({i}) Dataset example: x.shape={tuple(x.shape)}, y={y}')
 
 
