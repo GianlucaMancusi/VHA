@@ -53,11 +53,11 @@ class MOTSynthDS(Dataset):
         self.mode = mode
         assert mode in {'train', 'val', 'test'}, '`mode` must be \'train\' or \'val\''
 
-        self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
+        self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10.json'))
         self.catIds = self.mots_ds.getCatIds(catNms=['person'])
         self.imgIds = self.mots_ds.getImgIds(catIds=self.catIds)
 
-        max_cam_dist = self.get_dataset_max_cam_len()
+        #max_cam_dist = self.get_dataset_max_cam_len()
 
         self.g = (self.cnf.sigma * 5 + 1) if (self.cnf.sigma * 5) % 2 == 0 else self.cnf.sigma * 5
         self.gaussian_patch = utils.gkern(
@@ -80,6 +80,8 @@ class MOTSynthDS(Dataset):
         # load corresponding data
         annIds = self.mots_ds.getAnnIds(imgIds=img['id'], catIds=self.catIds, iscrowd=None)
         anns = self.mots_ds.loadAnns(annIds)
+
+
 
         all_hmaps = []
         y = []
