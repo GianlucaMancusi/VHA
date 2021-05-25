@@ -2,16 +2,14 @@
 # ---------------------
 
 import json
-import random
+from os import path
 from typing import *
 
 import numpy as np
 import torch
-from path import Path
+from pycocotools.coco import COCO as MOTS
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
-from pycocotools.coco import COCO as MOTS
-from os import path
 
 import utils
 from conf import Conf
@@ -42,18 +40,26 @@ class MOTSynthDS(Dataset):
     * y: json-list of gaussian centers (order: D, H, W)
     """
 
-    def __init__(self, mode, cnf=None):
+    def __init__(self, mode, cnf=None, debug=False):
         # type: (str, Conf) -> None
         """
         :param mode: values in {'train', 'val'}
         :param cnf: configuration object
-        :param sigma: parameter that controls the "spread" of the 3D gaussians:param cnf: configuration object
         """
         self.cnf = cnf
         self.mode = mode
+        self.debug = debug
         assert mode in {'train', 'val', 'test'}, '`mode` must be \'train\' or \'val\''
 
-        self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
+        self.mots_ds = None
+        if mode == 'train':
+            # self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
+            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10.json'))
+        if mode == 'val':
+            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '001.json'))
+        if mode == 'test':
+            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '002.json'))
+
         self.catIds = self.mots_ds.getCatIds(catNms=['person'])
         self.imgIds = self.mots_ds.getImgIds(catIds=self.catIds)
 
@@ -77,8 +83,8 @@ class MOTSynthDS(Dataset):
         img = self.mots_ds.loadImgs(self.imgIds[i])[0]
 
         # load corresponding data
-        annIds = self.mots_ds.getAnnIds(imgIds=img['id'], catIds=self.catIds, iscrowd=None)
-        anns = self.mots_ds.loadAnns(annIds)
+        ann_ids = self.mots_ds.getAnnIds(imgIds=img['id'], catIds=self.catIds, iscrowd=None)
+        anns = self.mots_ds.loadAnns(ann_ids)
 
         # augmentation initialization (rescale + crop)
         h, w, d = self.cnf.hmap_h, self.cnf.hmap_w, self.cnf.hmap_d
@@ -96,7 +102,8 @@ class MOTSynthDS(Dataset):
 
             joints = MOTSynthDS.get_joints_from_anns(anns, jtype)
 
-            self.visualize3djoint_in2d(joints, scale=True, draw_rect=(aug_scale, aug_offset_w, aug_offset_h))
+            if self.debug:
+                self.visualize3djoint_in2d(joints, scale=True, draw_rect=(aug_scale, aug_offset_w, aug_offset_h))
             # for each joint of the same pose jtype
             for joint in joints:
                 if joint['x2d'] < 0 or joint['y2d'] < 0 or joint['x2d'] > 1920 or joint['y2d'] > 1080:
@@ -155,8 +162,8 @@ class MOTSynthDS(Dataset):
                     ])), 0)[0]
 
                 y.append([USEFUL_JOINTS.index(jtype)] + center)
-
-            self.visualize3djoint_in2d(joints)
+            if self.debug:
+                self.visualize3djoint_in2d(joints)
             all_hmaps.append(x)
 
         y = json.dumps(y)
@@ -174,7 +181,9 @@ class MOTSynthDS(Dataset):
                 'y3d': ann['keypoints_3d'][4 * jtype + 1],
                 'z3d': ann['keypoints_3d'][4 * jtype + 2],
                 'visibility': ann['keypoints_3d'][4 * jtype + 3],
-                # visibility=0: not labeled (in which case x=y=z=0), visibility=1: labeled but not visible, and visibility=2: labeled and visible.
+                # visibility=0: not labeled (in which case x=y=z=0),
+                # visibility=1: labeled but not visible
+                # visibility=2: labeled and visible.
             })
         return joints
 
@@ -184,11 +193,11 @@ class MOTSynthDS(Dataset):
             img = self.mots_ds.loadImgs(self.imgIds[i])[0]
 
             # load corresponding data
-            annIds = self.mots_ds.getAnnIds(imgIds=img['id'], catIds=self.catIds, iscrowd=None)
-            anns = self.mots_ds.loadAnns(annIds)
+            ann_ids = self.mots_ds.getAnnIds(imgIds=img['id'], catIds=self.catIds, iscrowd=None)
+            anns = self.mots_ds.loadAnns(ann_ids)
             for ann in anns:
                 for jtype_index in range(len(ann['keypoints_3d']) // 4):
-                    _max = np.sqrt(ann['keypoints_3d'][jtype_index] ** 2 + ann['keypoints_3d'][jtype_index + 1] ** 2 + \
+                    _max = np.sqrt(ann['keypoints_3d'][jtype_index] ** 2 + ann['keypoints_3d'][jtype_index + 1] ** 2 +
                                    ann['keypoints_3d'][jtype_index + 2] ** 2)
                     curr_max = max(_max, curr_max)
         return curr_max
@@ -219,7 +228,7 @@ class MOTSynthDS(Dataset):
 def main():
     import utils
     cnf = Conf(exp_name='default')
-    ds = MOTSynthDS(mode='val', cnf=cnf)
+    ds = MOTSynthDS(mode='train', cnf=cnf, debug=True)
     loader = DataLoader(dataset=ds, batch_size=1, num_workers=0, shuffle=False)
 
     for i, sample in enumerate(loader):

@@ -1,3 +1,4 @@
+opencv-python
 typing>=3.7
 Click>=7.0
 numpy>=1.17
