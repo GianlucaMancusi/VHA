@@ -55,12 +55,12 @@ class MOTSynthDS(Dataset):
 
         self.mots_ds = None
         if mode == 'train':
-            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
-            # self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10.json'))
+            # self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
+            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10_train.json'))
         if mode == 'val':
-            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '001.json'))
+            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10_test.json'))
         if mode == 'test':
-            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '002.json'))
+            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10_test.json'))
 
         self.catIds = self.mots_ds.getCatIds(catNms=['person'])
         self.imgIds = self.mots_ds.getImgIds(catIds=self.catIds)
