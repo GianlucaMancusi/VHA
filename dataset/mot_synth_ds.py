@@ -15,6 +15,8 @@ import utils
 from conf import Conf
 
 # 14 useful joints for the MOTSynth dataset
+from test_metrics import joint_det_metrics
+
 USEFUL_JOINTS = [0, 2, 4, 5, 6, 8, 9, 10, 16, 17, 18, 19, 20, 21]
 
 # number of sequences
@@ -41,7 +43,7 @@ class MOTSynthDS(Dataset):
     """
 
     def __init__(self, mode, cnf=None, debug=False):
-        # type: (str, Conf) -> None
+        # type: (str, Conf, debug) -> None
         """
         :param mode: values in {'train', 'val'}
         :param cnf: configuration object
@@ -53,8 +55,8 @@ class MOTSynthDS(Dataset):
 
         self.mots_ds = None
         if mode == 'train':
-            # self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
-            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10.json'))
+            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
+            # self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10.json'))
         if mode == 'val':
             self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '001.json'))
         if mode == 'test':
@@ -89,8 +91,10 @@ class MOTSynthDS(Dataset):
         # augmentation initialization (rescale + crop)
         h, w, d = self.cnf.hmap_h, self.cnf.hmap_w, self.cnf.hmap_d
         aug_scale = np.random.uniform(0.5, 2)
-        aug_offset_h = np.random.uniform(0, h * aug_scale - h)
-        aug_offset_w = np.random.uniform(0, w * aug_scale - w)
+        aug_h = np.random.uniform(0, 1)
+        aug_w = np.random.uniform(0, 1)
+        aug_offset_h = aug_h * (h * aug_scale - h)
+        aug_offset_w = aug_w * (w * aug_scale - w)
 
         all_hmaps = []
         y = []
@@ -233,9 +237,14 @@ def main():
 
     for i, sample in enumerate(loader):
         x, y, _ = sample
+        x = x.to(cnf.device)
         y = json.loads(y[0])
 
         utils.visualize_3d_hmap(x[0, 13])
+        y_pred = utils.get_multi_local_maxima_3d(hmaps3d=x.squeeze(), threshold=0.1, device=cnf.device)
+        metrics = joint_det_metrics(points_pred=y_pred, points_true=y, th=1)
+        f1 = metrics['f1']
+        print(f'f1 score = {f1}')
         print(f'({i}) Dataset example: x.shape={tuple(x.shape)}, y={y}')
 
 

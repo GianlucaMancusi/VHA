@@ -206,7 +206,7 @@ class Trainer(object):
         """
         for e in range(self.epoch, self.cnf.epochs):
             self.train()
-            if e % 10 == 0 and e != 0:
-                self.test()
+            #if e % 10 == 0 and e != 0:
+            self.test()
             self.epoch += 1
             self.save_ck()
