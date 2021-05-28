@@ -14,6 +14,10 @@ from torch.utils.data import Dataset
 import utils
 from conf import Conf
 
+import platform
+
+is_windows = any(platform.win32_ver())
+
 # 14 useful joints for the MOTSynth dataset
 from test_metrics import joint_det_metrics
 
@@ -54,13 +58,22 @@ class MOTSynthDS(Dataset):
         assert mode in {'train', 'val', 'test'}, '`mode` must be \'train\' or \'val\''
 
         self.mots_ds = None
-        if mode == 'train':
-            # self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'annotations', '000.json'))
-            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10_train.json'))
-        if mode == 'val':
-            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10_test.json'))
-        if mode == 'test':
-            self.mots_ds = MOTS(path.join(self.cnf.mot_synth_path, 'MOTSynth_annotations_10_test.json'))
+        path_to_anns = None
+
+        if self.mode == 'train':
+            if is_windows:
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '000.json')
+            else:
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
+                                         'MOTSynth_annotations_10_train.json')
+        if self.mode in ('val', 'test'):
+            if is_windows:
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '002.json')
+            else:
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
+                                         'MOTSynth_annotations_10_test.json')
+        print(f'Annotation path to load: {path_to_anns}')
+        self.mots_ds = MOTS(path_to_anns)
 
         self.catIds = self.mots_ds.getCatIds(catNms=['person'])
         self.imgIds = self.mots_ds.getImgIds(catIds=self.catIds)
@@ -79,7 +92,7 @@ class MOTSynthDS(Dataset):
         return len(self.imgIds)
 
     def __getitem__(self, i):
-        # type: (int) -> Tuple[torch.Tensor, str, str]
+        # type: (int) -> Tuple[torch.Tensor, str, str, Tuple[Float, Float, Float]]
 
         # select sequence name and frame number
         img = self.mots_ds.loadImgs(self.imgIds[i])[0]
@@ -172,7 +185,7 @@ class MOTSynthDS(Dataset):
 
         y = json.dumps(y)
 
-        return torch.cat(tuple([h.unsqueeze(0) for h in all_hmaps])), y, 'NOT_AVAILABLE'
+        return torch.cat(tuple([h.unsqueeze(0) for h in all_hmaps])), y, img['file_name'],  (aug_scale, aug_h, aug_w)
 
     @staticmethod
     def get_joints_from_anns(anns, jtype):

@@ -14,6 +14,9 @@ from torch import nn
 from torch import optim
 from torch.utils.data import DataLoader
 from torchvision import transforms
+import imgaug.augmenters as iaa
+
+import matplotlib.pyplot as plt
 
 import utils
 from conf import Conf
@@ -66,7 +69,6 @@ class Trainer(object):
         dict = torch.load('log/pretrained/best.pth', map_location=torch.device('cpu'))
         self.model.load_state_dict(dict, strict=True)
 
-
     def load_ck(self):
         """
         load training checkpoint
@@ -82,7 +84,6 @@ class Trainer(object):
             if ck.get('optimizer', None) is not None:
                 self.optimizer.load_state_dict(ck['optimizer'])
 
-
     def save_ck(self):
         """
         save training checkpoint
@@ -94,7 +95,6 @@ class Trainer(object):
             'best_val_f1': self.best_val_f1
         }
         torch.save(ck, self.log_path / 'training.ck')
-
 
     def train(self):
         """
@@ -144,7 +144,6 @@ class Trainer(object):
         # log epoch duration
         print(f' │ T: {time() - start_time:.2f} s')
 
-
     def test(self):
         """
         test model on the Test-Set
@@ -155,7 +154,7 @@ class Trainer(object):
 
         t = time()
         for step, sample in enumerate(self.val_loader):
-            hmap_true, y_true, _ = sample
+            hmap_true, y_true, file_name, aug_info = sample
             hmap_true = hmap_true.to(self.cnf.device)
             y_true = json.loads(y_true[0])
 
@@ -165,6 +164,33 @@ class Trainer(object):
             self.val_losses.append(loss.item())
 
             y_pred = utils.get_multi_local_maxima_3d(hmaps3d=hmap_pred.squeeze(), threshold=0.1, device=self.cnf.device)
+
+            # TODO ----------- RIMUOVERE QUESTA PARE: VISUALIZZAZIONE JOINTS -------------
+            # print on image
+            # coords = []
+            # for i in range(len(y_pred)):
+            #     joint_type, cam_dist, y2d, x2d = y_pred[i]
+            #     x2d, y2d, cam_dist = x2d * 8, y2d * 8, (cam_dist * 0.31746031746031744)
+            #     coords.append([x2d, y2d])
+            # pts = np.array(coords)
+            # frame_path = self.cnf.mot_synth_path / file_name[0]
+            # frame = utils.imread(frame_path)
+            # # image augmentation
+            # aug_scale, aug_h, aug_w = aug_info
+            # frame = np.array(frame)
+            # img_h, img_w, _ = frame.shape
+            # # convert the offset calculated for 3d points (for the 3d heat map) to offset useful for
+            # # the Affine transformation by using the imgaug library
+            # aug_offset_h = -(aug_h - .5) * (img_h * aug_scale - img_h)
+            # aug_offset_w = -(aug_w - .5) * (img_w * aug_scale - img_w)
+            # aug_affine = iaa.Affine(scale=float(aug_scale),
+            #                         translate_px={'x': int(round(float(aug_offset_w))),
+            #                                       'y': int(round(float(aug_offset_h)))})
+            # frame = aug_affine(image=frame, return_batch=False)
+            # plt.imshow(frame)
+            # plt.scatter(pts[:, 0], pts[:, 1], marker="x", color="red", s=40)
+            # plt.savefig('image.png')
+            # TODO -------------------------------------------------
 
             metrics = joint_det_metrics(points_pred=y_pred, points_true=y_true, th=1)
             f1 = metrics['f1']
@@ -199,14 +225,13 @@ class Trainer(object):
             self.best_val_f1 = mean_val_f1
             torch.save(self.model.state_dict(), self.log_path / 'best.pth')
 
-
     def run(self):
         """
         start model training procedure (train > test > checkpoint > repeat)
         """
         for e in range(self.epoch, self.cnf.epochs):
             self.train()
-            #if e % 10 == 0 and e != 0:
+            # if e % 10 == 0 and e != 0:
             self.test()
             self.epoch += 1
             self.save_ck()

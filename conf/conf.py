@@ -86,7 +86,8 @@ class Conf(object):
         self.batch_size = y.get('BATCH_SIZE', 1)  # type: int
         self.test_len = y.get('TEST_LEN', 128)  # type: int
         self.epoch_len = y.get('EPOCH_LEN', 1024)  # type: int
-        self.mot_synth_path = y.get('MOTSYNTH_PATH', None)  # type: str
+        self.mot_synth_ann_path = y.get('MOTSYNTH_ANN_PATH', '. / motsynth')  # type: str
+        self.mot_synth_path = y.get('MOTSYNTH_PATH', '. / motsynth')  # type: str
 
         if y.get('DEVICE', None) is not None and y['DEVICE'] != 'cpu':
             os.environ['CUDA_VISIBLE_DEVICES'] = str(y.get('DEVICE').split(':')[1])
@@ -96,5 +97,7 @@ class Conf(object):
         else:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+        self.mot_synth_ann_path = Path(self.mot_synth_ann_path)
         self.mot_synth_path = Path(self.mot_synth_path)
-        assert self.mot_synth_path.exists(), 'the specified directory for the MOTS-Dataset does not exists'
+        assert self.mot_synth_ann_path.exists(), 'the specified directory for the MOTSynth-Dataset does not exists'
+        assert self.mot_synth_path.exists(), 'the specified directory for the MOTSynth-Dataset does not exists'

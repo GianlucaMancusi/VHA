@@ -1,12 +1,13 @@
 H: 136
 W: 240
 D: 316
-SIGMA: 8
+SIGMA: 2
 LR: 0.0001
 EPOCHS: 10
 N_WORKERS: 1
 BATCH_SIZE: 1
-TEST_LEN: 128
-EPOCH_LEN: 1024
-MOTSYNTH_PATH: 'Z:/Datasets/MOTSynth_clean_2'
+TEST_LEN: 7
+EPOCH_LEN: 1
+MOTSYNTH_ANN_PATH: 'Z:/Datasets/MOTSynth_clean_2' #'/nas/softechict-nas-3/matteo/Datasets/MOTSynth_clean_2/'
+MOTSYNTH_PATH: 'Z:/Datasets/MOTSynth' #'/nas/softechict-nas-3/matteo/Datasets/MOTSynth/'
 DEVICE: 'cuda:0'
