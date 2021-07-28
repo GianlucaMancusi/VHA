@@ -72,8 +72,7 @@ class TrainerDet(TrainerBase):
 
         # possibly load checkpoint
         self.load_ck()
-        dict = torch.load('log/pretrained/best.pth', map_location=torch.device('cpu'))
-        self.model.load_state_dict(dict, strict=False)
+
 
     def load_ck(self):
         """
@@ -89,6 +88,9 @@ class TrainerDet(TrainerBase):
             self.best_val_f1_center = ck['best_val_f1']
             if ck.get('optimizer', None) is not None:
                 self.optimizer.load_state_dict(ck['optimizer'])
+        else:
+            dict = torch.load('log/pretrained/best.pth', map_location=torch.device('cpu'))
+            self.model.load_state_dict(dict, strict=False)
 
     def save_ck(self):
         """
@@ -159,7 +161,7 @@ class TrainerDet(TrainerBase):
         self.model.requires_grad(False)
 
         val_f1s = {'f1_center': [], 'f1_width': [], 'f1_height': []}
-        val_loss = 0
+        val_losses = []
 
         t = time()
         for step, sample in enumerate(self.val_loader):
@@ -170,7 +172,7 @@ class TrainerDet(TrainerBase):
             hmap_pred = self.model.forward(hmap_true)
 
             loss = nn.MSELoss()(hmap_pred, hmap_true)
-            val_loss = loss.item()
+            val_losses.append(loss.item())
 
             x_center = hmap_pred[0, 0]
             x_width = hmap_pred[0, 1]
@@ -210,18 +212,19 @@ class TrainerDet(TrainerBase):
                 break
 
         # log average f1 on test set
+        mean_val_loss = np.mean(val_losses)
         mean_val_f1_center = np.mean(val_f1s['f1_center'])
         mean_val_f1_width = np.mean(val_f1s['f1_width'])
         mean_val_f1_height = np.mean(val_f1s['f1_height'])
-        print(f'[TEST] Loss: {val_loss:.6f}, '
-              f'AVG F1_center: {mean_val_f1_center:.6f}, '
-              f'AVG F1_width: {mean_val_f1_width:.6f}, '
-              f'AVG F1_height on VAL-set: {mean_val_f1_height:.6f}'
+        print(f'[TEST] AVG-Loss: {mean_val_loss:.6f}, '
+              f'AVG-F1_center: {mean_val_f1_center:.6f}, '
+              f'AVG-F1_width: {mean_val_f1_width:.6f}, '
+              f'AVG-F1_height: {mean_val_f1_height:.6f}'
               f' │ Test time: {time() - t:.2f} s')
-        self.sw.add_scalar(tag='val_F1_center', scalar_value=mean_val_f1_center, global_step=self.epoch)
+        self.sw.add_scalar(tag='val_F1', scalar_value=mean_val_f1_center, global_step=self.epoch)
         self.sw.add_scalar(tag='val_F1_width', scalar_value=mean_val_f1_width, global_step=self.epoch)
         self.sw.add_scalar(tag='val_F1_height', scalar_value=mean_val_f1_height, global_step=self.epoch)
-        self.sw.add_scalar(tag='val_loss', scalar_value=val_loss, global_step=self.epoch)
+        self.sw.add_scalar(tag='val_loss', scalar_value=mean_val_loss, global_step=self.epoch)
 
         # save best model
         if self.best_val_f1_center is None or mean_val_f1_center < self.best_val_f1_center:
