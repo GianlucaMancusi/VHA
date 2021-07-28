@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 from torch.nn.functional import interpolate
 
-from models import BaseModel
+from models.base_model import BaseModel
 
 
 class Upsample(nn.Module):

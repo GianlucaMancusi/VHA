@@ -11,9 +11,11 @@ import click
 import torch.backends.cudnn as cudnn
 from path import Path
 from termcolor import colored
-from trainer import Trainer
+from trainer_joint import TrainerJoint
+from trainer_det import TrainerDet
 
 cudnn.benchmark = True
+
 
 @click.command()
 @click.option('--exp_name', type=str, default=None)
@@ -38,7 +40,12 @@ def main(exp_name, seed):
 
     print(f'\n▶ Starting Experiment \'{exp_name}\' [seed: {cnf.seed}]')
 
-    trainer = Trainer(cnf=cnf)
+    if cnf.model_input == 'joint':
+        trainer = TrainerJoint(cnf=cnf)
+    elif cnf.model_input == 'detection':
+        trainer = TrainerDet(cnf=cnf)
+    else:
+        assert False, ''
     trainer.run()
 
 

@@ -1,13 +1,6 @@
 # -*- coding: utf-8 -*-
 # ---------------------
 
-import os
-
-PYTHONPATH = '..:.'
-if os.environ.get('PYTHONPATH', default=None) is None:
-    os.environ['PYTHONPATH'] = PYTHONPATH
-else:
-    os.environ['PYTHONPATH'] += (':' + PYTHONPATH)
 
 import yaml
 import socket
@@ -76,6 +69,7 @@ class Conf(object):
 
         # read configuration parameters from YAML file
         # or set their default value
+        self.model_input = str(y.get('INPUT_TYPE', 'joint'))  # type: str
         self.hmap_h = y.get('H', 128)  # type: int
         self.hmap_w = y.get('W', 128)  # type: int
         self.hmap_d = y.get('D', 100)  # type: int
@@ -86,16 +80,23 @@ class Conf(object):
         self.batch_size = y.get('BATCH_SIZE', 1)  # type: int
         self.test_len = y.get('TEST_LEN', 128)  # type: int
         self.epoch_len = y.get('EPOCH_LEN', 1024)  # type: int
+        self.data_augmentation = str(y.get('DATA_AUGMENTATION', 'no'))  # type: str # --> 'no': no data aug, 'images': only images, 'all', images and heatmap
         self.mot_synth_ann_path = y.get('MOTSYNTH_ANN_PATH', '. / motsynth')  # type: str
         self.mot_synth_path = y.get('MOTSYNTH_PATH', '. / motsynth')  # type: str
 
         if y.get('DEVICE', None) is not None and y['DEVICE'] != 'cpu':
-            os.environ['CUDA_VISIBLE_DEVICES'] = str(y.get('DEVICE').split(':')[1])
-            self.device = 'cuda:0'
+            #os.environ['CUDA_VISIBLE_DEVICES'] = str(y.get('DEVICE').split(':')[1])
+            self.device = 'cuda'
         elif y.get('DEVICE', None) is not None and y['DEVICE'] == 'cpu':
             self.device = 'cpu'
         else:
             self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+        available_data_aug = ['no', 'images', 'all']
+        assert self.data_augmentation in available_data_aug, f'the specified DATA_AUGMENTATION parameter "{self.data_augmentation}" does not exist, it must be one of {available_data_aug}'
+
+        available_input_type = ['joint', 'detection', 'tracking']
+        assert self.model_input in available_input_type, f'the specified INPUT_TYPE parameter "{self.model_input}" does not exist, it must be one of {available_input_type}'
 
         self.mot_synth_ann_path = Path(self.mot_synth_ann_path)
         self.mot_synth_path = Path(self.mot_synth_path)

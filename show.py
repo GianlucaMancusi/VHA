@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 import utils
 from conf import Conf
 from dataset.jta_hmap_ds import JTAHMapDS
-from models.vha import Autoencoder
+from models.vha_joint import Autoencoder
 from test_metrics import joint_det_metrics
 
 

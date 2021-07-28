@@ -10,6 +10,7 @@ import torch
 from pycocotools.coco import COCO as MOTS
 from torch.utils.data import DataLoader
 from torch.utils.data import Dataset
+import utils.geometric_generator_3d as gg
 
 import utils
 from conf import Conf
@@ -78,10 +79,10 @@ class MOTSynthDS(Dataset):
         self.catIds = self.mots_ds.getCatIds(catNms=['person'])
         self.imgIds = self.mots_ds.getImgIds(catIds=self.catIds)
 
-        # max_cam_dist = self.get_dataset_max_cam_len()
 
         self.g = (self.cnf.sigma * 5 + 1) if (self.cnf.sigma * 5) % 2 == 0 else self.cnf.sigma * 5
-        self.gaussian_patch = utils.gkern(
+        self.geometric_gen = gg.GeometricGenerator3D(self.cnf)
+        self.gaussian_patch = self.geometric_gen.make_a_gaussian(
             w=self.g, h=self.g, d=self.g,
             center=(self.g // 2, self.g // 2, self.g // 2),
             s=self.cnf.sigma, device='cpu'

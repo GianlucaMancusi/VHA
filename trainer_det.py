@@ -18,34 +18,42 @@ import imgaug.augmenters as iaa
 
 import matplotlib.pyplot as plt
 
-import utils
+from utils import utils
 from conf import Conf
 from dataset.mot_synth_ds import MOTSynthDS
+from dataset.mot_synth_det_ds import MOTSynthDetDS
 from test_metrics import joint_det_metrics
-from models.vha import Autoencoder
+from models.vha_det_simple import Autoencoder as AutoencoderSimple
+# from models.vha_det_complete import Autoencoder as AutoencoderPretrained
+from utils.trainer_base import TrainerBase
+
+MEAN_WIDTH = 52.61727208688375
+MEAN_HEIGHT = 116.20363004472165
+STD_DEV_WIDTH = 102.74863634249581
+STD_DEV_HEIGHT = 135.07407255355838
 
 
-class Trainer(object):
+class TrainerDet(TrainerBase):
 
     def __init__(self, cnf):
-        # type: (Conf) -> Trainer
+        # type: (Conf) -> TrainerJoint
 
-        self.cnf = cnf
+        super().__init__(cnf)
 
         # init model
-        self.model = Autoencoder(hmap_d=cnf.hmap_d).to(cnf.device)
+        self.model = AutoencoderSimple(hmap_d=cnf.hmap_d).to(cnf.device)
 
         # init optimizer
         self.optimizer = optim.Adam(params=self.model.parameters(), lr=cnf.lr)
 
         # init train loader
-        training_set = MOTSynthDS(mode='train', cnf=cnf)
+        training_set = MOTSynthDetDS(mode='train', cnf=cnf)
         self.train_loader = DataLoader(
             dataset=training_set, batch_size=cnf.batch_size, num_workers=cnf.n_workers, shuffle=True
         )
 
         # init val loader
-        val_set = MOTSynthDS(mode='val', cnf=cnf)
+        val_set = MOTSynthDetDS(mode='val', cnf=cnf)
         self.val_loader = DataLoader(
             dataset=val_set, batch_size=1, num_workers=cnf.n_workers, shuffle=False
         )
@@ -57,17 +65,15 @@ class Trainer(object):
         self.sw = SummaryWriter(self.log_path)
         self.log_freq = len(self.train_loader)
         self.train_losses = []
-        self.val_losses = []
-        self.val_f1s = []
 
         # starting values values
         self.epoch = 0
-        self.best_val_f1 = None
+        self.best_val_f1_center = None
 
         # possibly load checkpoint
         self.load_ck()
         dict = torch.load('log/pretrained/best.pth', map_location=torch.device('cpu'))
-        self.model.load_state_dict(dict, strict=True)
+        self.model.load_state_dict(dict, strict=False)
 
     def load_ck(self):
         """
@@ -78,9 +84,9 @@ class Trainer(object):
             ck = torch.load(ck_path, map_location=torch.device('cpu'))
             print('[loading checkpoint \'{}\']'.format(ck_path))
             self.epoch = ck['epoch']
-            self.model.load_state_dict(ck['model'], strict=True)
+            self.model.load_state_dict(ck['model'], strict=False)
             self.model.to(self.cnf.device)
-            self.best_val_f1 = ck['best_val_f1']
+            self.best_val_f1_center = ck['best_val_f1']
             if ck.get('optimizer', None) is not None:
                 self.optimizer.load_state_dict(ck['optimizer'])
 
@@ -92,7 +98,7 @@ class Trainer(object):
             'epoch': self.epoch,
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
-            'best_val_f1': self.best_val_f1
+            'best_val_f1': self.best_val_f1_center
         }
         torch.save(ck, self.log_path / 'training.ck')
 
@@ -109,7 +115,7 @@ class Trainer(object):
         for step, sample in enumerate(self.train_loader):
 
             self.optimizer.zero_grad()
-            x = sample[0].to(self.cnf.device)
+            x = sample.to(self.cnf.device)
 
             y_pred = self.model.forward(x)
 
@@ -152,6 +158,9 @@ class Trainer(object):
         self.model.eval()
         self.model.requires_grad(False)
 
+        val_f1s = {'f1_center': [], 'f1_width': [], 'f1_height': []}
+        val_loss = 0
+
         t = time()
         for step, sample in enumerate(self.val_loader):
             hmap_true, y_true, file_name, aug_info = sample
@@ -161,77 +170,60 @@ class Trainer(object):
             hmap_pred = self.model.forward(hmap_true)
 
             loss = nn.MSELoss()(hmap_pred, hmap_true)
-            self.val_losses.append(loss.item())
+            val_loss = loss.item()
 
-            y_pred = utils.get_multi_local_maxima_3d(hmaps3d=hmap_pred.squeeze(), threshold=0.1, device=self.cnf.device)
+            x_center = hmap_pred[0, 0]
+            x_width = hmap_pred[0, 1]
+            x_height = hmap_pred[0, 2]
 
-            # TODO ----------- RIMUOVERE QUESTA PARE: VISUALIZZAZIONE JOINTS -------------
-            # print on image
-            # coords = []
-            # for i in range(len(y_pred)):
-            #     joint_type, cam_dist, y2d, x2d = y_pred[i]
-            #     x2d, y2d, cam_dist = x2d * 8, y2d * 8, (cam_dist * 0.31746031746031744)
-            #     coords.append([x2d, y2d])
-            # pts = np.array(coords)
-            # frame_path = self.cnf.mot_synth_path / file_name[0]
-            # frame = utils.imread(frame_path)
-            # # image augmentation
-            # aug_scale, aug_h, aug_w = aug_info
-            # frame = np.array(frame)
-            # img_h, img_w, _ = frame.shape
-            # # convert the offset calculated for 3d points (for the 3d heat map) to offset useful for
-            # # the Affine transformation by using the imgaug library
-            # aug_offset_h = -(aug_h - .5) * (img_h * aug_scale - img_h)
-            # aug_offset_w = -(aug_w - .5) * (img_w * aug_scale - img_w)
-            # aug_affine = iaa.Affine(scale=float(aug_scale),
-            #                         translate_px={'x': int(round(float(aug_offset_w))),
-            #                                       'y': int(round(float(aug_offset_h)))})
-            # frame = aug_affine(image=frame, return_batch=False)
-            # plt.imshow(frame)
-            # plt.scatter(pts[:, 0], pts[:, 1], marker="x", color="red", s=40)
-            # plt.savefig('image.png')
-            # TODO -------------------------------------------------
+            y_center = [(coord[0], coord[1], coord[2]) for coord in y_true]
+            y_width = [(coord[0], coord[1], coord[2], coord[3]) for coord in y_true]
+            y_height = [(coord[0], coord[1], coord[2], coord[4]) for coord in y_true]
 
-            metrics = joint_det_metrics(points_pred=y_pred, points_true=y_true, th=1)
-            f1 = metrics['f1']
-            self.val_f1s.append(f1)
+            y_center_pred = utils.local_maxima_3d(heatmap=x_center, threshold=0.1, device=self.cnf.device)
+            y_width_pred = []
+            y_height_pred = []
+            for center_coord in y_center_pred:
+                cam_dist, y2d, x2d = center_coord
 
-            if step < 3:
-                hmap_pred = hmap_pred.squeeze()
-                out_path = self.cnf.exp_log_path / f'{step}_pred.mp4'
-                utils.save_3d_hmap(hmap=hmap_pred[0, ...], path=out_path)
+                width = float(x_width[cam_dist, y2d, x2d])
+                height = float(x_height[cam_dist, y2d, x2d])
 
-                hmap_true = hmap_true.squeeze()
-                out_path = self.cnf.exp_log_path / f'{step}_true.mp4'
-                utils.save_3d_hmap(hmap=hmap_true[0, ...], path=out_path)
+                # denormalize width and height
+                width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))
+                height = int(round(height * STD_DEV_HEIGHT + MEAN_HEIGHT))
+
+                y_width_pred.append((*center_coord, width))
+                y_height_pred.append((*center_coord, height))
+
+            metrics_center = joint_det_metrics(points_pred=y_center_pred, points_true=y_center, th=1)
+            metrics_width = joint_det_metrics(points_pred=y_width_pred, points_true=y_width, th=1)
+            metrics_height = joint_det_metrics(points_pred=y_height_pred, points_true=y_height, th=1)
+            f1_center = metrics_center['f1']
+            f1_width = metrics_width['f1']
+            f1_height = metrics_height['f1']
+            val_f1s['f1_center'].append(f1_center)
+            val_f1s['f1_width'].append(f1_width)
+            val_f1s['f1_height'].append(f1_height)
 
             if step >= self.cnf.test_len:
                 break
 
-        # log average loss on test set
-        mean_val_loss = np.mean(self.val_losses)
-        self.val_losses = []
-        print(f'\t● AVG Loss on VAL-set: {mean_val_loss:.6f} │ T: {time() - t:.2f} s')
-        self.sw.add_scalar(tag='val_loss', scalar_value=mean_val_loss, global_step=self.epoch)
-
         # log average f1 on test set
-        mean_val_f1 = np.mean(self.val_f1s)
-        self.val_f1s = []
-        print(f'\t● AVG F1@1px on VAL-set: {mean_val_f1:.6f} │ T: {time() - t:.2f} s')
-        self.sw.add_scalar(tag='val_F1', scalar_value=mean_val_f1, global_step=self.epoch)
+        mean_val_f1_center = np.mean(val_f1s['f1_center'])
+        mean_val_f1_width = np.mean(val_f1s['f1_width'])
+        mean_val_f1_height = np.mean(val_f1s['f1_height'])
+        print(f'[TEST] Loss: {val_loss:.6f}, '
+              f'AVG F1_center: {mean_val_f1_center:.6f}, '
+              f'AVG F1_width: {mean_val_f1_width:.6f}, '
+              f'AVG F1_height on VAL-set: {mean_val_f1_height:.6f}'
+              f' │ Test time: {time() - t:.2f} s')
+        self.sw.add_scalar(tag='val_F1_center', scalar_value=mean_val_f1_center, global_step=self.epoch)
+        self.sw.add_scalar(tag='val_F1_width', scalar_value=mean_val_f1_width, global_step=self.epoch)
+        self.sw.add_scalar(tag='val_F1_height', scalar_value=mean_val_f1_height, global_step=self.epoch)
+        self.sw.add_scalar(tag='val_loss', scalar_value=val_loss, global_step=self.epoch)
 
         # save best model
-        if self.best_val_f1 is None or mean_val_f1 < self.best_val_f1:
-            self.best_val_f1 = mean_val_f1
+        if self.best_val_f1_center is None or mean_val_f1_center < self.best_val_f1_center:
+            self.best_val_f1_center = mean_val_f1_center
             torch.save(self.model.state_dict(), self.log_path / 'best.pth')
-
-    def run(self):
-        """
-        start model training procedure (train > test > checkpoint > repeat)
-        """
-        for e in range(self.epoch, self.cnf.epochs):
-            self.train()
-            # if e % 10 == 0 and e != 0:
-            self.test()
-            self.epoch += 1
-            self.save_ck()

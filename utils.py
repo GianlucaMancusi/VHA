@@ -149,7 +149,7 @@ def save_3d_hmap(hmap, path):
 
 
 
-def gkern(d, h, w, center, s=2, device='cuda'):
+def gkern(d, h, w, center, s=2, device='cpu'):
     # type: (int, int, int, Union[List[int], Tuple[int, int, int]], float) -> torch.Tensor
     """
     :param d: hmap depth
