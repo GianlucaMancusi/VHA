@@ -13,7 +13,6 @@ class Upsample(nn.Module):
     Upsamples a given tensor by (scale_factor)X.
     """
 
-
     def __init__(self, scale_factor=2, mode='trilinear'):
         # type: (int, str) -> Upsample
         """
@@ -24,11 +23,9 @@ class Upsample(nn.Module):
         self.scale_factor = scale_factor
         self.mode = mode
 
-
     def forward(self, x):
         # type: (torch.Tensor) -> torch.Tensor
         return interpolate(x, scale_factor=self.scale_factor, mode=self.mode, align_corners=False)
-
 
     def extra_repr(self):
         return f'scale_factor={self.scale_factor}, mode={self.mode}'
@@ -40,7 +37,6 @@ class Autoencoder(BaseModel):
     """
     VHA: (V)olumetric (H)eatmap (A)utoencoder
     """
-
 
     def __init__(self, hmap_d=316, legacy_pretrained=True):
         # type: (int) -> None
@@ -99,14 +95,12 @@ class Autoencoder(BaseModel):
         x = self.fuser2(x)
         return x
 
-
     def decode(self, x):
         x = self.defuser2(x)
 
         x = self.decoder(torch.reshape(x, (x.shape[0] * 3, x.shape[2], x.shape[3], x.shape[4])).contiguous())
         x = torch.reshape(x, (x.shape[0] // 3, 3, x.shape[1], x.shape[2], x.shape[3])).contiguous()
         return x
-
 
     def forward(self, x):
         # type: (torch.Tensor) -> torch.Tensor
@@ -119,6 +113,9 @@ class Autoencoder(BaseModel):
 
 
 def main():
+    from time import time
+    from statistics import mean, stdev
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     batch_size = 3
 
@@ -129,16 +126,28 @@ def main():
 
     print(f'* number of parameters: {model.n_param}')
 
-    print('\n--- ENCODER ---')
-    x = torch.rand((batch_size, 3, 316, 1080 // 8, 1920 // 8)).to(device)
-    y = model.encode(x)
-    print(f'* input shape: {tuple(x.shape)}')
-    print(f'* output shape: {tuple(y.shape)}')
+    t_list = []
 
-    print('\n--- DECODER ---')
-    xd = model.decode(y)
-    print(f'* input shape: {tuple(y.shape)}')
-    print(f'* output shape: {tuple(xd.shape)}')
+    for i in range(200):
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        print('\n--- ENCODER ---')
+        x = torch.rand((batch_size, 3, 316, 1080 // 8, 1920 // 8)).to(device)
+        start.record()
+        y = model.encode(x)
+        print(f'* input shape: {tuple(x.shape)}')
+        print(f'* output shape: {tuple(y.shape)}')
+
+        print('\n--- DECODER ---')
+        xd = model.decode(y)
+        end.record()
+        torch.cuda.synchronize()
+        t_list.append(start.elapsed_time(end))
+        print(f'* input shape: {tuple(y.shape)}')
+        print(f'* output shape: {tuple(xd.shape)}')
+
+    print('\n--------- PROFILER ---------')
+    print(f'VHA time: {mean(t_list)}ms, stdev: +-{stdev(t_list)}ms')
 
 
 if __name__ == '__main__':

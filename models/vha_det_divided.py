@@ -135,26 +135,41 @@ class Autoencoder(BaseModel):
 
 
 def main():
+    from time import time
+    from statistics import mean, stdev
+
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     batch_size = 3
 
-    model = Autoencoder().to(device)
+    model = Autoencoder(legacy_pretrained=True).to(device)
     model.train()
     model.requires_grad(True)
     print(model)
 
     print(f'* number of parameters: {model.n_param}')
 
-    print('\n--- ENCODER ---')
-    x = torch.rand((batch_size, 3, 316, 1080 // 8, 1920 // 8)).to(device)
-    y = model.encode(x)
-    print(f'* input shape: {tuple(x.shape)}')
-    print(f'* output shape: {tuple(y.shape)}')
+    t_list = []
 
-    print('\n--- DECODER ---')
-    xd = model.decode(y)
-    print(f'* input shape: {tuple(y.shape)}')
-    print(f'* output shape: {tuple(xd.shape)}')
+    for i in range(200):
+        start = torch.cuda.Event(enable_timing=True)
+        end = torch.cuda.Event(enable_timing=True)
+        print('\n--- ENCODER ---')
+        x = torch.rand((batch_size, 3, 316, 1080 // 8, 1920 // 8)).to(device)
+        start.record()
+        y = model.encode(x)
+        print(f'* input shape: {tuple(x.shape)}')
+        print(f'* output shape: {tuple(y.shape)}')
+
+        print('\n--- DECODER ---')
+        xd = model.decode(y)
+        end.record()
+        torch.cuda.synchronize()
+        t_list.append(start.elapsed_time(end))
+        print(f'* input shape: {tuple(y.shape)}')
+        print(f'* output shape: {tuple(xd.shape)}')
+
+    print('\n--------- PROFILER ---------')
+    print(f'VHA time: {mean(t_list)}ms, stdev: +-{stdev(t_list)}ms')
 
 
 if __name__ == '__main__':

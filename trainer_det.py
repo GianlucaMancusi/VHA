@@ -24,7 +24,8 @@ from dataset.mot_synth_ds import MOTSynthDS
 from dataset.mot_synth_det_ds import MOTSynthDetDS
 from test_metrics import joint_det_metrics
 from models.vha_det_simple import Autoencoder as AutoencoderSimple
-# from models.vha_det_complete import Autoencoder as AutoencoderPretrained
+from models.vha_det_divided import Autoencoder as AutoencoderDivided
+from models.vha_det_c3d_pretrained import Autoencoder as AutoencoderC3dPretrained
 from utils.trainer_base import TrainerBase
 
 MEAN_WIDTH = 52.61727208688375
@@ -42,12 +43,13 @@ class TrainerDet(TrainerBase):
 
         # init model
         if cnf.detection_model == 'c2d-shared':
-            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0)
+            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(self.cnf.device)
         if cnf.detection_model == 'c2d-divided':
-            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0)
+            self.model = AutoencoderDivided(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(self.cnf.device)
+        if cnf.detection_model == 'c2d-divided-c3d-pretrained':
+            self.model = AutoencoderC3dPretrained(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(self.cnf.device)
         else:
-            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0)
-
+            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(self.cnf.device)
 
         # init optimizer
         self.optimizer = optim.Adam(params=self.model.parameters(), lr=cnf.lr)
@@ -139,7 +141,7 @@ class TrainerDet(TrainerBase):
                     progress_bar, 100 * progress,
                     np.mean(self.train_losses), 1 / np.mean(times),
                     e=math.ceil(math.log10(self.cnf.epochs)),
-                    s=math.ceil(math.log10(self.log_freq)),
+                    s=math.ceil(math.log10(self.cnf.epoch_len)),
                 ), end='')
 
             if step >= self.cnf.epoch_len - 1:

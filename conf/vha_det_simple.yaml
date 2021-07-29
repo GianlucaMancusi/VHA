@@ -1,5 +1,6 @@
 MODEL_INPUT: 'detection'
 DETECTION_MODEL: 'c2d-shared'
+DATA_AUGMENTATION: 'all'
 H: 136
 W: 240
 D: 316
