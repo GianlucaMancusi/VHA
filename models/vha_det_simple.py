@@ -42,7 +42,7 @@ class Autoencoder(BaseModel):
     """
 
 
-    def __init__(self, hmap_d=316):
+    def __init__(self, hmap_d=316, legacy_pretrained=True):
         # type: (int) -> None
         """
         :param hmap_d: number of input channels
@@ -82,7 +82,11 @@ class Autoencoder(BaseModel):
             nn.ReLU(True)
         )
 
+        if legacy_pretrained:
+            self.load_legacy_pretrained_weights()
 
+    def load_legacy_pretrained_weights(self):
+        self.load_w('log/pretrained/best.pth', strict=False, map_location=torch.device('cpu'))
 
     def encode(self, x):
         # type: (torch.Tensor) -> torch.Tensor

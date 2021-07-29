@@ -69,7 +69,8 @@ class Conf(object):
 
         # read configuration parameters from YAML file
         # or set their default value
-        self.model_input = str(y.get('INPUT_TYPE', 'joint'))  # type: str
+        self.model_input = str(y.get('MODEL_INPUT', 'joint'))  # type: str
+        self.detection_model = str(y.get('DETECTION_MODEL', 'c2d-shared'))  # type: str
         self.hmap_h = y.get('H', 128)  # type: int
         self.hmap_w = y.get('W', 128)  # type: int
         self.hmap_d = y.get('D', 100)  # type: int
@@ -95,10 +96,29 @@ class Conf(object):
         available_data_aug = ['no', 'images', 'all']
         assert self.data_augmentation in available_data_aug, f'the specified DATA_AUGMENTATION parameter "{self.data_augmentation}" does not exist, it must be one of {available_data_aug}'
 
-        available_input_type = ['joint', 'detection', 'tracking']
-        assert self.model_input in available_input_type, f'the specified INPUT_TYPE parameter "{self.model_input}" does not exist, it must be one of {available_input_type}'
+        available_model_input = ['joint', 'detection', 'tracking']
+        assert self.model_input in available_model_input, f'the specified MODEL_INPUT parameter "{self.model_input}" does not exist, it must be one of {available_model_input}'
+
+        available_detection_model = ['c2d-shared', 'c2d-divided', 'c2d-divided-c3d-pretrained']
+        assert self.detection_model in available_detection_model, f'the specified DETECTION_MODEL parameter "{self.detection_model}" does not exist, it must be one of {available_detection_model}'
 
         self.mot_synth_ann_path = Path(self.mot_synth_ann_path)
         self.mot_synth_path = Path(self.mot_synth_path)
         assert self.mot_synth_ann_path.exists(), 'the specified directory for the MOTSynth-Dataset does not exists'
         assert self.mot_synth_path.exists(), 'the specified directory for the MOTSynth-Dataset does not exists'
+
+        self.saved_epoch = 0
+        self.model_weights = None
+        self.best_val_f1 = None
+        self.optimizer_data = None
+
+        # loading checkpoint data
+        ck_path = self.exp_log_path / 'training.ck'
+        if ck_path.exists():
+            ck = torch.load(ck_path, map_location=torch.device('cpu'))
+            print('[loading checkpoint \'{}\']'.format(ck_path))
+            self.saved_epoch = ck['epoch']
+            self.model_weights = ck['model']
+            self.best_val_f1 = ck['best_val_f1']
+            if ck.get('optimizer', None) is not None:
+                self.optimizer_data = ck['optimizer']

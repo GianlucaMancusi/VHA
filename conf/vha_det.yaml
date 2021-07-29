@@ -1,4 +1,5 @@
-INPUT_TYPE: 'detection'
+MODEL_INPUT: 'detection'
+DETECTION_MODEL: 'c2d-shared'
 H: 136
 W: 240
 D: 316

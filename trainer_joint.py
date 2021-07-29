@@ -61,7 +61,7 @@ class TrainerJoint(TrainerBase):
         self.val_f1s = []
 
         # starting values values
-        self.epoch = 0
+        self.current_epoch = 0
         self.best_val_f1 = None
 
         # possibly load checkpoint
@@ -77,7 +77,7 @@ class TrainerJoint(TrainerBase):
         if ck_path.exists():
             ck = torch.load(ck_path, map_location=torch.device('cpu'))
             print('[loading checkpoint \'{}\']'.format(ck_path))
-            self.epoch = ck['epoch']
+            self.current_epoch = ck['epoch']
             self.model.load_state_dict(ck['model'], strict=True)
             self.model.to(self.cnf.device)
             self.best_val_f1 = ck['best_val_f1']
@@ -89,7 +89,7 @@ class TrainerJoint(TrainerBase):
         save training checkpoint
         """
         ck = {
-            'epoch': self.epoch,
+            'epoch': self.current_epoch,
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'best_val_f1': self.best_val_f1
@@ -126,7 +126,7 @@ class TrainerJoint(TrainerBase):
             t = time()
             if self.cnf.log_each_step or (not self.cnf.log_each_step and progress == 1):
                 print('\r[{}] Epoch {:0{e}d}.{:0{s}d}: │{}│ {:6.2f}% │ Loss: {:.6f} │ ↯: {:5.2f} step/s'.format(
-                    datetime.now().strftime("%m-%d@%H:%M"), self.epoch, step + 1,
+                    datetime.now().strftime("%m-%d@%H:%M"), self.current_epoch, step + 1,
                     progress_bar, 100 * progress,
                     np.mean(self.train_losses), 1 / np.mean(times),
                     e=math.ceil(math.log10(self.cnf.epochs)),
@@ -138,7 +138,7 @@ class TrainerJoint(TrainerBase):
 
         # log average loss of this epoch
         mean_epoch_loss = np.mean(self.train_losses)
-        self.sw.add_scalar(tag='train_loss', scalar_value=mean_epoch_loss, global_step=self.epoch)
+        self.sw.add_scalar(tag='train_loss', scalar_value=mean_epoch_loss, global_step=self.current_epoch)
         self.train_losses = []
 
         # log epoch duration
@@ -186,13 +186,13 @@ class TrainerJoint(TrainerBase):
         mean_val_loss = np.mean(self.val_losses)
         self.val_losses = []
         print(f'\t● AVG Loss on VAL-set: {mean_val_loss:.6f} │ T: {time() - t:.2f} s')
-        self.sw.add_scalar(tag='val_loss', scalar_value=mean_val_loss, global_step=self.epoch)
+        self.sw.add_scalar(tag='val_loss', scalar_value=mean_val_loss, global_step=self.current_epoch)
 
         # log average f1 on test set
         mean_val_f1 = np.mean(self.val_f1s)
         self.val_f1s = []
         print(f'\t● AVG F1@1px on VAL-set: {mean_val_f1:.6f} │ T: {time() - t:.2f} s')
-        self.sw.add_scalar(tag='val_F1', scalar_value=mean_val_f1, global_step=self.epoch)
+        self.sw.add_scalar(tag='val_F1', scalar_value=mean_val_f1, global_step=self.current_epoch)
 
         # save best model
         if self.best_val_f1 is None or mean_val_f1 < self.best_val_f1:

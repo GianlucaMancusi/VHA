@@ -41,7 +41,13 @@ class TrainerDet(TrainerBase):
         super().__init__(cnf)
 
         # init model
-        self.model = AutoencoderSimple(hmap_d=cnf.hmap_d).to(cnf.device)
+        if cnf.detection_model == 'c2d-shared':
+            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0)
+        if cnf.detection_model == 'c2d-divided':
+            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0)
+        else:
+            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0)
+
 
         # init optimizer
         self.optimizer = optim.Adam(params=self.model.parameters(), lr=cnf.lr)
@@ -67,37 +73,32 @@ class TrainerDet(TrainerBase):
         self.train_losses = []
 
         # starting values values
-        self.epoch = 0
+        self.current_epoch = 0
         self.best_val_f1_center = None
 
         # possibly load checkpoint
         self.load_ck()
 
+        self.model.to(self.cnf.device)
 
     def load_ck(self):
         """
         load training checkpoint
         """
-        ck_path = self.log_path / 'training.ck'
-        if ck_path.exists():
-            ck = torch.load(ck_path, map_location=torch.device('cpu'))
-            print('[loading checkpoint \'{}\']'.format(ck_path))
-            self.epoch = ck['epoch']
-            self.model.load_state_dict(ck['model'], strict=False)
-            self.model.to(self.cnf.device)
-            self.best_val_f1_center = ck['best_val_f1']
-            if ck.get('optimizer', None) is not None:
-                self.optimizer.load_state_dict(ck['optimizer'])
-        else:
-            dict = torch.load('log/pretrained/best.pth', map_location=torch.device('cpu'))
-            self.model.load_state_dict(dict, strict=False)
+        self.current_epoch = self.cnf.saved_epoch
+        if self.cnf.model_weights is not None:
+            self.model.load_state_dict(self.cnf.model_weights, strict=False)
+
+        self.best_val_f1_center = self.cnf.best_val_f1
+        if self.cnf.optimizer_data is not None:
+            self.optimizer.load_state_dict(self.cnf.optimizer_data)
 
     def save_ck(self):
         """
         save training checkpoint
         """
         ck = {
-            'epoch': self.epoch,
+            'epoch': self.current_epoch,
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
             'best_val_f1': self.best_val_f1_center
@@ -134,7 +135,7 @@ class TrainerDet(TrainerBase):
             t = time()
             if self.cnf.log_each_step or (not self.cnf.log_each_step and progress == 1):
                 print('\r[{}] Epoch {:0{e}d}.{:0{s}d}: │{}│ {:6.2f}% │ Loss: {:.6f} │ ↯: {:5.2f} step/s'.format(
-                    datetime.now().strftime("%m-%d@%H:%M"), self.epoch, step + 1,
+                    datetime.now().strftime("%m-%d@%H:%M"), self.current_epoch, step + 1,
                     progress_bar, 100 * progress,
                     np.mean(self.train_losses), 1 / np.mean(times),
                     e=math.ceil(math.log10(self.cnf.epochs)),
@@ -146,7 +147,7 @@ class TrainerDet(TrainerBase):
 
         # log average loss of this epoch
         mean_epoch_loss = np.mean(self.train_losses)
-        self.sw.add_scalar(tag='train_loss', scalar_value=mean_epoch_loss, global_step=self.epoch)
+        self.sw.add_scalar(tag='train_loss', scalar_value=mean_epoch_loss, global_step=self.current_epoch)
         self.train_losses = []
 
         # log epoch duration
@@ -221,10 +222,10 @@ class TrainerDet(TrainerBase):
               f'AVG-F1_width: {mean_val_f1_width:.6f}, '
               f'AVG-F1_height: {mean_val_f1_height:.6f}'
               f' │ Test time: {time() - t:.2f} s')
-        self.sw.add_scalar(tag='val_F1', scalar_value=mean_val_f1_center, global_step=self.epoch)
-        self.sw.add_scalar(tag='val_F1_width', scalar_value=mean_val_f1_width, global_step=self.epoch)
-        self.sw.add_scalar(tag='val_F1_height', scalar_value=mean_val_f1_height, global_step=self.epoch)
-        self.sw.add_scalar(tag='val_loss', scalar_value=mean_val_loss, global_step=self.epoch)
+        self.sw.add_scalar(tag='val_F1', scalar_value=mean_val_f1_center, global_step=self.current_epoch)
+        self.sw.add_scalar(tag='val_F1_width', scalar_value=mean_val_f1_width, global_step=self.current_epoch)
+        self.sw.add_scalar(tag='val_F1_height', scalar_value=mean_val_f1_height, global_step=self.current_epoch)
+        self.sw.add_scalar(tag='val_loss', scalar_value=mean_val_loss, global_step=self.current_epoch)
 
         # save best model
         if self.best_val_f1_center is None or mean_val_f1_center < self.best_val_f1_center:
