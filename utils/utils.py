@@ -135,15 +135,29 @@ def get_3d_hmap_image(cnf, hmap, image, coords2d, normalize=False, scale_to=None
     return final_image
 
 
-def draw_bboxes(image, bboxes, use_z=False, half_images=True):
+def draw_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None):
     image = image.copy()
-    if use_z and len(bboxes) > 0:
+    if aug_info is not None:
+        import imgaug.augmenters as iaa
+        aug_scale, aug_h, aug_w = aug_info
+        aug_scale, aug_h, aug_w = float(aug_scale), float(aug_h), float(aug_w)
+        img_h, img_w, _ = image.shape
+        # convert the offset calculated for 3d points (for the 3d heat map) to offset useful for
+        # the Affine transformation by using the imgaug library
+        aug_offset_h = -(aug_h - .5) * (img_h * aug_scale - img_h)
+        aug_offset_w = -(aug_w - .5) * (img_w * aug_scale - img_w)
+        aug_affine = iaa.Affine(scale=aug_scale,
+                                translate_px={'x': int(round(aug_offset_w)), 'y': int(round(aug_offset_h))})
+        image = aug_affine(image=image, return_batch=False)
+    if len(bboxes) == 0:
+        return image
+    image = cv2.resize(image, (1920 // 2, 1080 // 2) if half_images else (1920, 1080))
+    if use_z:
         min_d = min([b[4] for b in bboxes])
         max_d = max([b[4] for b in bboxes])
         range_d = int(max_d - min_d)
         colors = list(Color("green").range_to(Color("red"), range_d + 1))
-        for bbox in bboxes:
-            x, y, w, h, d = bbox
+        for x, y, w, h, d in bboxes:
             if half_images:
                 x, y, w, h = x / 2, y / 2, w / 2, h / 2
             d_index = int(d - min_d)
@@ -160,11 +174,16 @@ def draw_bboxes(image, bboxes, use_z=False, half_images=True):
     return image
 
 
-def visualize_bboxes(image, bboxes, use_z=False, half_images=True):
+def visualize_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None):
     x = draw_bboxes(image, bboxes, use_z, half_images)
     cv2.imshow(f'press ESC to exit', cv2.cvtColor(x, cv2.COLOR_RGB2BGR))
     cv2.waitKey()
     cv2.destroyAllWindows()
+
+
+def save_bboxes(image, bboxes, path, use_z=False, half_images=True, aug_info=None):
+    x = draw_bboxes(image, bboxes, use_z, half_images, aug_info)
+    cv2.imwrite(path, cv2.cvtColor(x, cv2.COLOR_RGB2BGR))
 
 
 def visualize_3d_hmap(hmap, image=None, depth_limit=315):
@@ -403,7 +422,8 @@ def get_multi_local_maxima_3d(hmaps3d, threshold, device='cuda'):
 
     return peaks
 
-def save_3d_hmap(hmap, path):
+
+def save_3d_hmap(hmap, path, shift_values=False):
     # type: (Union[np.ndarray, torch.Tensor], str) -> None
     """
     Saves a 3D heatmap as MP4 video with JET colormap.
@@ -418,8 +438,15 @@ def save_3d_hmap(hmap, path):
             hmap = hmap.cpu().numpy()
         except:
             hmap = hmap.detach().cpu().numpy()
-    hmap[hmap < 0] = 0
-    hmap[hmap > 1] = 1
+
+    if shift_values:
+        shift_amount = hmap.max() - hmap.min() + 3
+        hmap[hmap == shift_amount] = 0
+        hmap = hmap / hmap.max()
+    else:
+        hmap[hmap < 0] = 0
+        hmap[hmap > 1] = 1
+
     hmap = (hmap * 255).astype(np.uint8)
     frames = [cv2.applyColorMap(x, colormap=cv2.COLORMAP_JET) for x in hmap]
 

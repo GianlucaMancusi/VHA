@@ -56,7 +56,7 @@ class MOTSynthDetDS(Dataset):
 
         if self.mode == 'train':
             if is_windows:
-                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '001.json')
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '002.json')
                 # path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                 #                         'MOTSynth_annotations_10_test.json')
             else:
@@ -83,11 +83,10 @@ class MOTSynthDetDS(Dataset):
             center=(self.g // 2, self.g // 2, self.g // 2),
             s=self.cnf.sigma, device='cpu'
         )
-        self.sphere_diameter = 5
         self.sphere_patch = self.geometric_gen.make_a_sphere(
-            w=self.sphere_diameter, h=self.sphere_diameter, d=self.sphere_diameter,
-            center=(self.sphere_diameter // 2, self.sphere_diameter // 2, self.sphere_diameter // 2),
-            r=self.sphere_diameter // 2, device='cpu'
+            w=self.cnf.sphere_diameter, h=self.cnf.sphere_diameter, d=self.cnf.sphere_diameter,
+            center=(self.cnf.sphere_diameter // 2, self.cnf.sphere_diameter // 2, self.cnf.sphere_diameter // 2),
+            r=self.cnf.sphere_diameter // 2, device='cpu'
         )
 
     def __len__(self):
@@ -98,7 +97,6 @@ class MOTSynthDetDS(Dataset):
             return self.cnf.test_len
 
     def __getitem__(self, i):
-        # type: (int) -> Tuple[torch.Tensor, torch.Tensor]
         # select sequence name and frame number
         img = self.mots_ds.loadImgs(self.imgIds[i])[0]
 
@@ -110,9 +108,9 @@ class MOTSynthDetDS(Dataset):
         x_tensor, aug_info, y_coords3d, y_coords2d = self.generate_3d_tensors(anns, augmentation=augmentation)
 
         if self.mode == 'train':
-            return x_tensor
+            return x_tensor, img['file_name'], aug_info
         elif self.mode in ('val', 'test'):
-            return (x_tensor, y_coords2d, img['file_name'], aug_info)
+            return x_tensor, y_coords2d, img['file_name'], aug_info
 
     def generate_3d_tensors(self, anns, augmentation):
         # type: (List[dict], str) -> Tuple[Tensor, Tuple[float, float, float], Any, Any]
@@ -167,9 +165,9 @@ class MOTSynthDetDS(Dataset):
 
             # Update the center, width and height tensor
             self.geometric_gen.paste_tensor(x_centers, self.gaussian_patch, self.g, center)  # in place function
-            self.geometric_gen.paste_tensor(x_width, self.sphere_patch, self.sphere_diameter,
+            self.geometric_gen.paste_tensor(x_width, self.sphere_patch, self.cnf.sphere_diameter,
                                             center=center, mul_value=normalized_width, use_max=False)
-            self.geometric_gen.paste_tensor(x_height, self.sphere_patch, self.sphere_diameter,
+            self.geometric_gen.paste_tensor(x_height, self.sphere_patch, self.cnf.sphere_diameter,
                                             center=center, mul_value=normalized_height, use_max=False)
 
             y_coords3d.append([bbox['mean_x3d'], bbox['mean_y3d'], bbox['mean_z3d']])
@@ -224,7 +222,7 @@ class MOTSynthDetDS(Dataset):
 
 def main():
     from test_metrics import joint_det_metrics
-    cnf = Conf(exp_name='default')
+    cnf = Conf(exp_name='vha_d_c3d_debug')
     ds = MOTSynthDetDS(mode='test', cnf=cnf)
     loader = DataLoader(dataset=ds, batch_size=1, num_workers=0, shuffle=False)
 
@@ -244,6 +242,7 @@ def main():
         y_center_pred = utils.local_maxima_3d(heatmap=x_center, threshold=0.1, device=cnf.device)
         y_width_pred = []
         y_height_pred = []
+        bboxes_info_pred = []
         for center_coord in y_center_pred:
             cam_dist, y2d, x2d = center_coord
 
@@ -254,8 +253,11 @@ def main():
             width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))
             height = int(round(height * STD_DEV_HEIGHT + MEAN_HEIGHT))
 
-            y_width_pred.append((*center_coord, int(round(width))))
-            y_height_pred.append((*center_coord, int(round(height))))
+            y_width_pred.append((*center_coord, width))
+            y_height_pred.append((*center_coord, height))
+
+            x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=cnf.q)
+            bboxes_info_pred.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))
 
         metrics_center = joint_det_metrics(points_pred=y_center_pred, points_true=y_center, th=1)
         metrics_width = joint_det_metrics(points_pred=y_width_pred, points_true=y_width, th=1)
@@ -265,6 +267,10 @@ def main():
         f1_height = metrics_height['f1']
         print(f'f1_center={f1_center}, f1_width={f1_width}, f1_height={f1_height}')
         # print(f'({i}) Dataset example: x.shape={tuple(x.shape)}, y={y}')
+
+        img_original = np.array(utils.imread(cnf.mot_synth_path / file_name[0]).convert("RGB"))
+        out_path = cnf.exp_log_path / f'DS_DEBUG_{i}_bboxes_pred.jpg'
+        utils.visualize_bboxes(img_original, bboxes_info_pred, use_z=True, half_images=False)
 
 
 if __name__ == '__main__':

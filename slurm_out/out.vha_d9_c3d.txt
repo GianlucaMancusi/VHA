@@ -1,0 +1,19 @@
+┏━━━━━━━━━┓
+┃ VHA@dgx ┃
+┗━━━━━━━━━┛
+[loading checkpoint 'log/vha_d_c3d_sphdiam9/training.ck']
+
+▶ Starting Experiment 'vha_d_c3d_sphdiam9' [seed: 4580]
+Annotation path to load: /nas/softechict-nas-3/matteo/Datasets/MOTSynth_clean_2/annotation_groups/MOTSynth_annotations_10_train.json
+loading annotations into memory...
+Done (t=193.76s)
+creating index...
+index created!
+Annotation path to load: /nas/softechict-nas-3/matteo/Datasets/MOTSynth_clean_2/annotation_groups/MOTSynth_annotations_10_test.json
+loading annotations into memory...
+Done (t=61.51s)
+creating index...
+index created!
+tensorboard --logdir=/nas/softechict-nas-3/matteo/PycharmProjects/gianlu/VHA/log
+
+[08-04@10:28] Epoch 175.0001: │┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈┈│   0.02% │ Loss: 0.000008 │ ↯:  0.26 step/s

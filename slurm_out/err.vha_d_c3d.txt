@@ -1,0 +1,18 @@
+Traceback (most recent call last):
+  File "main.py", line 53, in <module>
+    main()
+  File "/homes/matteo/.conda/envs/loco_env/lib/python3.7/site-packages/click/core.py", line 1137, in __call__
+    return self.main(*args, **kwargs)
+  File "/homes/matteo/.conda/envs/loco_env/lib/python3.7/site-packages/click/core.py", line 1062, in main
+    rv = self.invoke(ctx)
+  File "/homes/matteo/.conda/envs/loco_env/lib/python3.7/site-packages/click/core.py", line 1404, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/homes/matteo/.conda/envs/loco_env/lib/python3.7/site-packages/click/core.py", line 763, in invoke
+    return __callback(*args, **kwargs)
+  File "main.py", line 49, in main
+    trainer.run()
+  File "/nas/softechict-nas-3/matteo/PycharmProjects/gianlu/VHA/utils/trainer_base.py", line 34, in run
+    self.train()
+  File "/nas/softechict-nas-3/matteo/PycharmProjects/gianlu/VHA/trainer_det.py", line 177, in train
+    width = float(x_width[0, cam_dist, y2d, x2d])
+IndexError: index 23 is out of bounds for dimension 0 with size 2

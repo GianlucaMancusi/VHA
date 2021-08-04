@@ -30,8 +30,10 @@ class TrainerBase(ABC):
         start model training procedure (train > test > checkpoint > repeat)
         """
         for e in range(self.current_epoch, self.cnf.epochs):
-            self.train()
+            if self.cnf.epoch_len > 0:
+                self.train()
             # if e % 10 == 0 and e != 0:
-            self.test()
+            if self.cnf.test_len > 0:
+                self.test()
             self.current_epoch += 1
             self.save_ck()

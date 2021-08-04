@@ -107,6 +107,26 @@ class Autoencoder(BaseModel):
             self.load_legacy_pretrained_weights()
 
     def load_legacy_pretrained_weights(self):
+        """
+        Extract the useful weights from the VHA trained on the human pose estimation task (14 heatmaps for each joint),
+        we will call it 14VHA.
+        Please remember: pytorch will load weights by module names. So, for example in the 14VHA there were
+        these modules: encoder, fuser, defuser, decoder
+        Now for the detection, we want:
+        1.  encoder and encoder_w_h (encoder_w_h to predict the width and height values, that are not guassians like in
+            the "encoder", but spheres)
+        2. fuser_c3d (with a kernel 3x5x5x5 instead of a 14x5x5x5 as we have seen in the "fuser")
+        3. defuser_c3d (same as the fuser_c3d)
+        4. decoder and decoder_w_h (in order to obtain back the heatmap and the map with the widths and heights)
+
+        Procedure:
+        1. load the 14VHA weights in the old modules (by name)
+        2. transfer the encoder weights in the encoder_w_h weights using "load_state_dict"
+        3. load in the fuser_c3d the weights of the fuser.
+            3.1 load the same weights and biases in the second module inside the fuser_c3d
+            3.2 in torch.no_grad(), load only the first 3 filters of the 14VHA in our VHA
+        4. do the same for the defuser_c3d
+        """
         self.load_w('log/pretrained/best.pth', strict=False, map_location=torch.device('cpu'))
         # copy the encoder and decoder weights in the new encoder and decoder used for width and height 3d-maps
         self.encoder_w_h.load_state_dict(self.encoder.state_dict(), strict=False)

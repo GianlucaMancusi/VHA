@@ -71,10 +71,13 @@ class Conf(object):
         # or set their default value
         self.model_input = str(y.get('MODEL_INPUT', 'joint'))  # type: str
         self.detection_model = str(y.get('DETECTION_MODEL', 'c2d-shared'))  # type: str
+        self.loss_function = str(y.get('LOSS_FUNCTION', 'MSE'))  # type: str
+        self.q = y.get('Q', 0.31746031746031744)  # type: float # --> quantization factor
         self.hmap_h = y.get('H', 128)  # type: int
         self.hmap_w = y.get('W', 128)  # type: int
         self.hmap_d = y.get('D', 100)  # type: int
-        self.sigma = y.get('SIGMA', 4)  # type: int
+        self.sigma = y.get('SIGMA', 2)  # type: int
+        self.sphere_diameter = y.get('SPHERE_DIAMETER', 5)  # type: int
         self.lr = y.get('LR', 0.0001)  # type: float
         self.epochs = y.get('EPOCHS', 10000)  # type: int
         self.n_workers = y.get('N_WORKERS', 8)  # type: int
@@ -101,6 +104,9 @@ class Conf(object):
 
         available_detection_model = ['c2d-shared', 'c2d-divided', 'c2d-divided-c3d-pretrained']
         assert self.detection_model in available_detection_model, f'the specified DETECTION_MODEL parameter "{self.detection_model}" does not exist, it must be one of {available_detection_model}'
+
+        available_loss_functions = ['MSE', 'L1']
+        assert self.loss_function in available_loss_functions, f'the specified LOSS_FUNCTION parameter "{self.loss_function}" does not exist, it must be one of {available_loss_functions}'
 
         self.mot_synth_ann_path = Path(self.mot_synth_ann_path)
         self.mot_synth_path = Path(self.mot_synth_path)
