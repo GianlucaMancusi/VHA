@@ -1,3 +1,4 @@
+motmetrics
 imgaug
 imageio
 imageio-ffmpeg

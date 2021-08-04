@@ -175,7 +175,7 @@ def draw_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None):
 
 
 def visualize_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None):
-    x = draw_bboxes(image, bboxes, use_z, half_images)
+    x = draw_bboxes(image, bboxes, use_z, half_images, aug_info)
     cv2.imshow(f'press ESC to exit', cv2.cvtColor(x, cv2.COLOR_RGB2BGR))
     cv2.waitKey()
     cv2.destroyAllWindows()
@@ -454,3 +454,5 @@ def save_3d_hmap(hmap, path, shift_values=False):
         frames[d] = cv2.putText(frames[d], f'{d}', (10, 60), 1, 2, (255, 128, 128), 2, cv2.LINE_AA)[:, :, ::-1]
 
     imageio.mimsave(path, frames, macro_block_size=None)
+
+

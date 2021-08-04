@@ -22,7 +22,7 @@ from utils import utils
 from conf import Conf
 from dataset.mot_synth_ds import MOTSynthDS
 from dataset.mot_synth_det_ds import MOTSynthDetDS
-from test_metrics import joint_det_metrics
+from test_metrics import joint_det_metrics, compute_det_metrics_iou
 from models.vha_det_simple import Autoencoder as AutoencoderSimple
 from models.vha_det_divided import Autoencoder as AutoencoderDivided
 from models.vha_det_c3d_pretrained import Autoencoder as AutoencoderC3dPretrained
@@ -163,25 +163,6 @@ class TrainerDet(TrainerBase):
                     s=math.ceil(math.log10(self.cnf.epoch_len)),
                 ), end='')
 
-            # TRAIN VISUALIZATION OF THE FIRST 3 SAMPLES (using only the first element of the batch)
-            if step < 3:
-                bboxes_info_pred = []
-                pred_centers = utils.local_maxima_3d(heatmap=x_true_center[0], threshold=0.1, device=self.cnf.device)
-                for cam_dist, y2d, x2d in pred_centers:
-
-                    width = float(x_true_width[0, cam_dist, y2d, x2d])
-                    height = float(x_true_height[0, cam_dist, y2d, x2d])
-
-                    # denormalize width and height
-                    width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))
-                    height = int(round(height * STD_DEV_HEIGHT + MEAN_HEIGHT))
-
-                    x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=self.cnf.q)
-                    bboxes_info_pred.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))
-                img_original = np.array(utils.imread(self.cnf.mot_synth_path / file_name[0]).convert("RGB"))
-                out_path = self.cnf.exp_log_path / f'TRAIN_{step}_bboxes_pred.jpg'
-                utils.save_bboxes(img_original, bboxes_info_pred, path=out_path, use_z=True, half_images=False, aug_info=aug_info)
-
             if step >= self.cnf.epoch_len - 1:
                 break
 
@@ -206,7 +187,7 @@ class TrainerDet(TrainerBase):
         self.model.eval()
         self.model.requires_grad(False)
 
-        val_f1s = {'f1_center': [], 'f1_width': [], 'f1_height': []}
+        val_f1s = {'f1_iou':[], 'f1_center': [], 'f1_width': [], 'f1_height': []}
         val_losses = {'all': [], 'center': [], 'width': [], 'height': []}
 
         t = time()
@@ -268,12 +249,15 @@ class TrainerDet(TrainerBase):
                 x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=self.cnf.q)
                 bboxes_info_true.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))
 
+            metrics_iou = compute_det_metrics_iou(bboxes_a=bboxes_info_pred, bboxes_b=bboxes_info_true)
             metrics_center = joint_det_metrics(points_pred=y_center_pred, points_true=y_center, th=1)
             metrics_width = joint_det_metrics(points_pred=y_width_pred, points_true=y_width, th=1)
             metrics_height = joint_det_metrics(points_pred=y_height_pred, points_true=y_height, th=1)
+            f1_iou = metrics_iou['f1']
             f1_center = metrics_center['f1']
             f1_width = metrics_width['f1']
             f1_height = metrics_height['f1']
+            val_f1s['f1_iou'].append(f1_iou)
             val_f1s['f1_center'].append(f1_center)
             val_f1s['f1_width'].append(f1_width)
             val_f1s['f1_height'].append(f1_height)
@@ -305,6 +289,7 @@ class TrainerDet(TrainerBase):
 
         # log average f1 on test set
         mean_val_loss = np.mean(val_losses['all'])
+        mean_val_f1_iou = np.mean(val_f1s['f1_iou'])
         mean_val_f1_center = np.mean(val_f1s['f1_center'])
         mean_val_f1_width = np.mean(val_f1s['f1_width'])
         mean_val_f1_height = np.mean(val_f1s['f1_height'])
@@ -312,13 +297,15 @@ class TrainerDet(TrainerBase):
         mean_val_loss_width = np.mean(val_losses['width'])
         mean_val_loss_height = np.mean(val_losses['height'])
         print(f'[TEST] AVG-Loss: {mean_val_loss:.6f}, '
+              f'AVG-F1_iou: {mean_val_f1_iou:.6f}, '
               f'AVG-F1_center: {mean_val_f1_center:.6f}, '
               f'AVG-F1_width: {mean_val_f1_width:.6f}, '
               f'AVG-F1_height: {mean_val_f1_height:.6f}'
               f' │ Test time: {time() - t:.2f} s')
-        self.sw.add_scalar(tag='val_F1', scalar_value=mean_val_f1_center, global_step=self.current_epoch)
-        self.sw.add_scalar(tag='val_F1_width', scalar_value=mean_val_f1_width, global_step=self.current_epoch)
-        self.sw.add_scalar(tag='val_F1_height', scalar_value=mean_val_f1_height, global_step=self.current_epoch)
+        self.sw.add_scalar(tag='val_F1/iou', scalar_value=mean_val_f1_iou, global_step=self.current_epoch)
+        self.sw.add_scalar(tag='val_F1/center', scalar_value=mean_val_f1_center, global_step=self.current_epoch)
+        self.sw.add_scalar(tag='val_F1/width', scalar_value=mean_val_f1_width, global_step=self.current_epoch)
+        self.sw.add_scalar(tag='val_F1/height', scalar_value=mean_val_f1_height, global_step=self.current_epoch)
         self.sw.add_scalar(tag='val_loss', scalar_value=mean_val_loss, global_step=self.current_epoch)
         self.sw.add_scalar(tag='val_loss/center', scalar_value=mean_val_loss_center, global_step=self.current_epoch)
         self.sw.add_scalar(tag='val_loss/width', scalar_value=mean_val_loss_width, global_step=self.current_epoch)

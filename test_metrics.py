@@ -49,6 +49,48 @@ def not_nan_count(x: np.ndarray) -> int:
     return len(x[~np.isnan(x)])
 
 
+def compute_det_metrics_iou(bboxes_a, bboxes_b):
+    bboxes_a = np.array([[bbox[1], bbox[2], bbox[3], bbox[4]] for bbox in bboxes_a])
+    bboxes_b = np.array([[bbox[1], bbox[2], bbox[3], bbox[4]] for bbox in bboxes_b])
+
+    import motmetrics as mm
+    iou_matrix = mm.distances.iou_matrix(bboxes_a, bboxes_b, max_iou=0.5)
+    return metrics_from_matrix(iou_matrix)
+
+
+def metrics_from_matrix(mat: np.array):
+    """
+    :param mat: Distance matrix NxN
+    :return: a dictionary of metrics, 'met', related to joint detection;
+             the the available metrics are:
+             (1) met['tp'] = number of True Positives
+             (2) met['fn'] = number of False Negatives
+             (3) met['fp'] = number of False Positives
+             (4) met['pr'] = PRecision
+             (5) met['re'] = REcall
+             (6) met['f1'] = F1-score
+    """
+    mat = np.array(mat)
+    mat = np.apply_along_axis(non_minima_suppression, 1, mat)
+    mat = np.apply_along_axis(non_minima_suppression, 0, mat)
+
+    # calculate joint detection metrics
+    nr = np.apply_along_axis(not_nan_count, 1, mat)
+    tp = len(nr[nr != 0])  # number of True Positives
+    fn = len(nr[nr == 0])  # number of False Negatives
+    fp = mat.shape[0] - tp  # number of False Positives
+    pr = tp / (tp + fp)  # PRecision
+    re = tp / (tp + fn)  # REcall
+    f1 = 2 * tp / (2 * tp + fn + fp)  # F1-score
+    # build the metrics dictionary
+    metrics = {
+        'tp': tp, 'fn': fn, 'fp': fp,
+        'pr': pr, 're': re, 'f1': f1,
+    }
+
+    return metrics
+
+
 def joint_det_metrics(points_pred, points_true, th=7.0):
     # type: (List[Seq], List[Seq], float) -> Dict[str, Union[int, float]]
     """
