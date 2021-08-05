@@ -187,7 +187,7 @@ class TrainerDet(TrainerBase):
         self.model.eval()
         self.model.requires_grad(False)
 
-        val_f1s = {'f1_iou':[], 'f1_center': [], 'f1_width': [], 'f1_height': []}
+        val_f1s = {'f1_iou': [], 'f1_center': [], 'f1_width': [], 'f1_height': []}
         val_losses = {'all': [], 'center': [], 'width': [], 'height': []}
 
         t = time()
@@ -206,15 +206,15 @@ class TrainerDet(TrainerBase):
             val_losses['all'].append(loss.item())
 
             # log center, width, height losses
-            x_center = hmap_pred[0, 0]
-            x_width = hmap_pred[0, 1]
-            x_height = hmap_pred[0, 2]
-            y_center = hmap_true[0, 0]
-            y_width = hmap_true[0, 1]
-            y_height = hmap_true[0, 2]
-            loss_center = loss_function(y_center, x_center)
-            loss_width = loss_function(y_width, x_width)
-            loss_height = loss_function(y_height, x_height)
+            x_pred_center = hmap_pred[0, 0]
+            x_pred_width = hmap_pred[0, 1]
+            x_pred_height = hmap_pred[0, 2]
+            x_true_center = hmap_true[0, 0]
+            x_true_width = hmap_true[0, 1]
+            x_true_height = hmap_true[0, 2]
+            loss_center = loss_function(x_true_center, x_pred_center)
+            loss_width = loss_function(x_true_width, x_pred_width)
+            loss_height = loss_function(x_true_height, x_pred_height)
             val_losses['center'].append(loss_center.item())
             val_losses['width'].append(loss_width.item())
             val_losses['height'].append(loss_height.item())
@@ -223,7 +223,7 @@ class TrainerDet(TrainerBase):
             y_width = [(coord[0], coord[1], coord[2], coord[3]) for coord in y_true]
             y_height = [(coord[0], coord[1], coord[2], coord[4]) for coord in y_true]
 
-            y_center_pred = utils.local_maxima_3d(heatmap=x_center, threshold=0.1, device=self.cnf.device)
+            y_center_pred = utils.local_maxima_3d(heatmap=x_pred_center, threshold=0.1, device=self.cnf.device)
             y_width_pred = []
             y_height_pred = []
             bboxes_info_pred = []
@@ -231,8 +231,8 @@ class TrainerDet(TrainerBase):
             for center_coord in y_center_pred:
                 cam_dist, y2d, x2d = center_coord
 
-                width = float(x_width[cam_dist, y2d, x2d])
-                height = float(x_height[cam_dist, y2d, x2d])
+                width = float(x_pred_width[cam_dist, y2d, x2d])
+                height = float(x_pred_height[cam_dist, y2d, x2d])
 
                 # denormalize width and height
                 width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))
@@ -244,7 +244,6 @@ class TrainerDet(TrainerBase):
                 x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=self.cnf.q)
                 bboxes_info_pred.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))
 
-            y_center_pred = utils.local_maxima_3d(heatmap=x_center, threshold=0.1, device=self.cnf.device)
             for cam_dist, y2d, x2d, width, height in y_true:
                 x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=self.cnf.q)
                 bboxes_info_true.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))

@@ -56,15 +56,15 @@ class MOTSynthDetDS(Dataset):
 
         if self.mode == 'train':
             if is_windows:
-                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '123.json')
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '154.json')
                 # path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                 #                         'MOTSynth_annotations_10_test.json')
             else:
                 path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                                          'MOTSynth_annotations_10_train.json')
         if self.mode in ('val', 'test'):
-            if is_windows:
-                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '275.json')
+            if is_windows:                                                          #'275.json'
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '100.json')
             else:
                 path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                                          'MOTSynth_annotations_10_test.json')
@@ -292,7 +292,7 @@ def main():
             f1_center = metrics_center['f1']
             f1_width = metrics_width['f1']
             f1_height = metrics_height['f1']
-            print(f'f1_center={f1_iou}, f1_center={f1_center}, f1_width={f1_width}, f1_height={f1_height}')
+            print(f'f1_iou={f1_iou}, f1_center={f1_center}, f1_width={f1_width}, f1_height={f1_height}')
         # print(f'({i}) Dataset example: x.shape={tuple(x.shape)}, y={y}')
 
         img_original = np.array(utils.imread(cnf.mot_synth_path / file_name[0]).convert("RGB"))
