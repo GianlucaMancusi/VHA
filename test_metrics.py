@@ -52,8 +52,8 @@ def not_nan_count(x: np.ndarray) -> int:
 
 def compute_det_metrics_iou(bboxes_a, bboxes_b):
     if len(bboxes_a) > 0 and len(bboxes_b):
-        bboxes_a = np.array([[bbox[1], bbox[2], bbox[3], bbox[4]] for bbox in bboxes_a])
-        bboxes_b = np.array([[bbox[1], bbox[2], bbox[3], bbox[4]] for bbox in bboxes_b])
+        bboxes_a = np.array([[bbox[0], bbox[1], bbox[2], bbox[3]] for bbox in bboxes_a])
+        bboxes_b = np.array([[bbox[0], bbox[1], bbox[2], bbox[3]] for bbox in bboxes_b])
 
         mat = mm.distances.iou_matrix(bboxes_a, bboxes_b, max_iou=0.5)
         mat = np.apply_along_axis(non_minima_suppression, 1, mat)
