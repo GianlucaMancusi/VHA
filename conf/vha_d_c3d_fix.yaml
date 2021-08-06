@@ -1,6 +1,7 @@
 MODEL_INPUT: 'detection'
 DETECTION_MODEL: 'c2d-divided-c3d-pretrained'
 DATA_AUGMENTATION: 'all'
+LOSS_FUNCTION: 'MSE'
 H: 136
 W: 240
 D: 316
