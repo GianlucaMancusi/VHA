@@ -135,8 +135,9 @@ def get_3d_hmap_image(cnf, hmap, image, coords2d, normalize=False, scale_to=None
     return final_image
 
 
-def draw_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None):
+def draw_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None, normalize_z=True):
     image = image.copy()
+    image = cv2.resize(image, (1920 // 2, 1080 // 2) if half_images else (1920, 1080))
     if aug_info is not None:
         import imgaug.augmenters as iaa
         aug_scale, aug_h, aug_w = aug_info
@@ -151,20 +152,30 @@ def draw_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None):
         image = aug_affine(image=image, return_batch=False)
     if len(bboxes) == 0:
         return image
-    image = cv2.resize(image, (1920 // 2, 1080 // 2) if half_images else (1920, 1080))
     if use_z:
-        min_d = min([b[4] for b in bboxes])
-        max_d = max([b[4] for b in bboxes])
-        range_d = int(max_d - min_d)
-        colors = list(Color("green").range_to(Color("red"), range_d + 1))
+        min_d = int(round(min([b[4] for b in bboxes])))
+        max_d = int(round(max([b[4] for b in bboxes])))
+        if normalize_z:
+            range_d = max_d - min_d
+            colors = list(Color("green").range_to(Color("red"), range_d + 1))
+        else:
+            colors = list(Color("green").range_to(Color("red"), 48))
+            colors += list(Color("red").range_to(Color("black"), 140 - 48))
+            colors += list(Color("black").range_to(Color("violet"), 316 - 140 - 48))
+
         for x, y, w, h, d in bboxes:
             if half_images:
                 x, y, w, h = x / 2, y / 2, w / 2, h / 2
-            d_index = int(d - min_d)
-            color = [int(c * 255) for c in colors[d_index].rgb]
+            d = int(round(d))
+            if d > 58:
+                print("",end="")
+            d_index = d - min_d if normalize_z else d
+            color = [int(round(c * 255)) for c in colors[d_index].rgb]
             image = cv2.rectangle(image, (int(x), int(y)),
                                   (int(x) + int(w), int(y) + int(h)),
                                   color=(color[0], color[1], color[2]), thickness=2)
+            image = cv2.putText(image, str(d), (int(x), int(y)), cv2.FONT_HERSHEY_SIMPLEX,
+                                0.4, (color[2], color[1], color[0]), 1, cv2.LINE_AA)
     else:
 
         for bbox in bboxes:
@@ -174,15 +185,15 @@ def draw_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None):
     return image
 
 
-def visualize_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None):
-    x = draw_bboxes(image, bboxes, use_z, half_images, aug_info)
+def visualize_bboxes(image, bboxes, use_z=False, half_images=True, aug_info=None, normalize_z=True):
+    x = draw_bboxes(image, bboxes, use_z, half_images, aug_info, normalize_z)
     cv2.imshow(f'press ESC to exit', cv2.cvtColor(x, cv2.COLOR_RGB2BGR))
     cv2.waitKey()
     cv2.destroyAllWindows()
 
 
-def save_bboxes(image, bboxes, path, use_z=False, half_images=True, aug_info=None):
-    x = draw_bboxes(image, bboxes, use_z, half_images, aug_info)
+def save_bboxes(image, bboxes, path, use_z=False, half_images=True, aug_info=None, normalize_z=True):
+    x = draw_bboxes(image, bboxes, use_z, half_images, aug_info, normalize_z)
     cv2.imwrite(path, cv2.cvtColor(x, cv2.COLOR_RGB2BGR))
 
 
@@ -454,5 +465,3 @@ def save_3d_hmap(hmap, path, shift_values=False):
         frames[d] = cv2.putText(frames[d], f'{d}', (10, 60), 1, 2, (255, 128, 128), 2, cv2.LINE_AA)[:, :, ::-1]
 
     imageio.mimsave(path, frames, macro_block_size=None)
-
-

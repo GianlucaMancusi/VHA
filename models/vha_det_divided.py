@@ -77,7 +77,7 @@ class Autoencoder(BaseModel):
             Upsample(mode='bilinear'),
             nn.ReLU(True),
             nn.Conv2d(in_channels=hmap_d // 2, out_channels=hmap_d, kernel_size=5, padding=2),
-            nn.ReLU(True)
+            # nn.ReLU(True)
         )
         self.decoder_w_h = deepcopy(self.decoder)
 

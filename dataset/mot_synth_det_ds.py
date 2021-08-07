@@ -64,7 +64,9 @@ class MOTSynthDetDS(Dataset):
                                          'MOTSynth_annotations_10_train.json')
         if self.mode in ('val', 'test'):
             if is_windows:                                                          #'275.json'
-                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '275.json')
+                # path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '275.json')
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
+                                         'MOTSynth_annotations_10_test.json')
             else:
                 path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                                          'MOTSynth_annotations_10_test.json')
@@ -105,7 +107,7 @@ class MOTSynthDetDS(Dataset):
         anns = self.mots_ds.loadAnns(ann_ids)
 
         augmentation = self.cnf.data_augmentation if self.mode == 'train' else 'no'
-        x_tensor, aug_info, y_coords3d, y_coords2d = self.generate_3d_tensors(anns, augmentation=augmentation)
+        x_tensor, aug_info, _, y_coords2d = self.generate_3d_tensors(anns, augmentation=augmentation)
 
         if self.mode == 'train':
             return x_tensor, img['file_name'], aug_info
@@ -155,7 +157,7 @@ class MOTSynthDetDS(Dataset):
                 int(round(cam_dist_in_map))
             ]
 
-            # ignore the point if due to augmentation the point goes out of the screen
+            # ignore the point if due to augmentation the point goes out of the volumetric map
             if min(center) < 0 or person_center_in_map['x2d'] > w or person_center_in_map['y2d'] > h \
                 or cam_dist_in_map > d:
                 continue
@@ -224,7 +226,7 @@ class MOTSynthDetDS(Dataset):
 
 def main():
     from test_metrics import joint_det_metrics, compute_det_metrics_iou
-    cnf = Conf(exp_name='vha_d_c3d_debug')
+    cnf = Conf(exp_name='vha_d_debug')
 
     # load dataset
     mode = 'test'
@@ -245,6 +247,7 @@ def main():
 
         if mode == 'test':
             x, y, file_name, aug_info = sample
+            y_true = json.loads(y[0])
         if mode == 'train':
             x, file_name, aug_info = sample
         x = x.to(cnf.device)
@@ -278,6 +281,7 @@ def main():
             x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=cnf.q)
             bboxes_info_pred.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))
 
+        img_original = np.array(utils.imread(cnf.mot_synth_path / file_name[0]).convert("RGB"))
         if mode == 'test':
             bboxes_info_true = []
             for cam_dist, y2d, x2d, width, height in y:
@@ -293,11 +297,18 @@ def main():
             f1_width = metrics_width['f1']
             f1_height = metrics_height['f1']
             print(f'f1_iou={f1_iou}, f1_center={f1_center}, f1_width={f1_width}, f1_height={f1_height}')
+
+            #for cam_dist, y2d, x2d, width, height in y_true:
+            #    x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=cnf.q)
+            #    bboxes_info_true.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))
+
+            #utils.visualize_bboxes(img_original, bboxes_info_true, use_z=True, half_images=False, aug_info=aug_info,
+            #                       normalize_z=False)
+
         # print(f'({i}) Dataset example: x.shape={tuple(x.shape)}, y={y}')
 
-        img_original = np.array(utils.imread(cnf.mot_synth_path / file_name[0]).convert("RGB"))
-        # out_path = cnf.exp_log_path / f'DS_DEBUG_{i}_bboxes_pred.jpg'
-        utils.visualize_bboxes(img_original, bboxes_info_pred, use_z=True, half_images=True, aug_info=aug_info)
+
+        utils.visualize_bboxes(img_original, bboxes_info_pred, use_z=True, half_images=True, aug_info=aug_info, normalize_z=False)
 
 
 if __name__ == '__main__':
