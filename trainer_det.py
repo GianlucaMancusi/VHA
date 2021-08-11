@@ -26,13 +26,15 @@ from test_metrics import joint_det_metrics, compute_det_metrics_iou
 from models.vha_det_simple import Autoencoder as AutoencoderSimple
 from models.vha_det_divided import Autoencoder as AutoencoderDivided
 from models.vha_det_c3d_pretrained import Autoencoder as AutoencoderC3dPretrained
+from models.vha_det_c3d_2 import Autoencoder as AutoencoderC3dOutput2
 from utils.trainer_base import TrainerBase
 
-MEAN_WIDTH = 52.61727208688375
-MEAN_HEIGHT = 116.20363004472165
-STD_DEV_WIDTH = 102.74863634249581
-STD_DEV_HEIGHT = 135.07407255355838
-
+# MEAN_WIDTH = 52.61727208688375
+# MEAN_HEIGHT = 116.20363004472165
+# STD_DEV_WIDTH = 102.74863634249581
+# STD_DEV_HEIGHT = 135.07407255355838
+MAX_WIDTH = 1919
+MAX_HEIGHT = 1079
 
 class TrainerDet(TrainerBase):
 
@@ -42,14 +44,14 @@ class TrainerDet(TrainerBase):
         super().__init__(cnf)
 
         # init model
-        if cnf.detection_model == 'c2d-shared':
-            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(
-                self.cnf.device)
-        if cnf.detection_model == 'c2d-divided':
-            self.model = AutoencoderDivided(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(
-                self.cnf.device)
         if cnf.detection_model == 'c2d-divided-c3d-pretrained':
             self.model = AutoencoderC3dPretrained(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(
+                self.cnf.device)
+        if cnf.detection_model == 'c3d-2':
+            self.model = AutoencoderC3dOutput2(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(
+                self.cnf.device)
+        if cnf.detection_model == 'c2d-divided-scratch':
+            self.model = AutoencoderDivided(hmap_d=cnf.hmap_d, legacy_pretrained=False).to(
                 self.cnf.device)
         else:
             self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(
@@ -235,8 +237,8 @@ class TrainerDet(TrainerBase):
                 height = float(x_pred_height[cam_dist, y2d, x2d])
 
                 # denormalize width and height
-                width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))
-                height = int(round(height * STD_DEV_HEIGHT + MEAN_HEIGHT))
+                width = int(round(width * MAX_WIDTH))
+                height = int(round(height * MAX_HEIGHT))
 
                 y_width_pred.append((*center_coord, width))
                 y_height_pred.append((*center_coord, height))

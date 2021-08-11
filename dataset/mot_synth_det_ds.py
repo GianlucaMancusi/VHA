@@ -26,11 +26,12 @@ MAX_CAM_DIST = 100
 # camera intrinsic parameters: fx, fy, cx, cy
 CAMERA_PARAMS = 1158, 1158, 960, 540
 
-MEAN_WIDTH = 52.61727208688375
-MEAN_HEIGHT = 116.20363004472165
-STD_DEV_WIDTH = 102.74863634249581
-STD_DEV_HEIGHT = 135.07407255355838
-
+# MEAN_WIDTH = 52.61727208688375
+# MEAN_HEIGHT = 116.20363004472165
+# STD_DEV_WIDTH = 102.74863634249581
+# STD_DEV_HEIGHT = 135.07407255355838
+MAX_WIDTH = 1919
+MAX_HEIGHT = 1079
 
 class MOTSynthDetDS(Dataset):
     """
@@ -63,10 +64,10 @@ class MOTSynthDetDS(Dataset):
                 path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                                          'MOTSynth_annotations_10_train.json')
         if self.mode in ('val', 'test'):
-            if is_windows:                                                          #'275.json'
-                # path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '275.json')
-                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
-                                         'MOTSynth_annotations_10_test.json')
+            if is_windows:  # '275.json'
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '275.json')
+                # path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
+                #                         'MOTSynth_annotations_10_test.json')
             else:
                 path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                                          'MOTSynth_annotations_10_test.json')
@@ -164,8 +165,8 @@ class MOTSynthDetDS(Dataset):
 
             width = bbox['width'] * aug_scale
             height = bbox['height'] * aug_scale
-            normalized_width = (width - MEAN_WIDTH) / STD_DEV_WIDTH
-            normalized_height = (height - MEAN_HEIGHT) / STD_DEV_HEIGHT
+            normalized_width = width / MAX_WIDTH
+            normalized_height = height / MAX_HEIGHT
 
             # Update the center, width and height tensor
             self.geometric_gen.paste_tensor(x_centers, self.gaussian_patch, self.g, center)  # in place function
@@ -267,13 +268,17 @@ def main():
         y_width_pred = []
         y_height_pred = []
         bboxes_info_pred = []
+        # w_min = min([float(x_width[cam_dist, y2d, x2d]) for cam_dist, y2d, x2d in y_center_pred])
+        # w_max = max([float(x_width[cam_dist, y2d, x2d]) for cam_dist, y2d, x2d in y_center_pred])
+        # h_min = min([float(x_height[cam_dist, y2d, x2d]) for cam_dist, y2d, x2d in y_center_pred])
+        # h_max = max([float(x_height[cam_dist, y2d, x2d]) for cam_dist, y2d, x2d in y_center_pred])
         for cam_dist, y2d, x2d in y_center_pred:
             width = float(x_width[cam_dist, y2d, x2d])
             height = float(x_height[cam_dist, y2d, x2d])
 
             # denormalize width and height
-            width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))
-            height = int(round(height * STD_DEV_HEIGHT + MEAN_HEIGHT))
+            width = int(round(width * MAX_WIDTH))
+            height = int(round(height * MAX_HEIGHT))
 
             y_width_pred.append((cam_dist, y2d, x2d, width))
             y_height_pred.append((cam_dist, y2d, x2d, height))
@@ -298,17 +303,17 @@ def main():
             f1_height = metrics_height['f1']
             print(f'f1_iou={f1_iou}, f1_center={f1_center}, f1_width={f1_width}, f1_height={f1_height}')
 
-            #for cam_dist, y2d, x2d, width, height in y_true:
+            # for cam_dist, y2d, x2d, width, height in y_true:
             #    x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=cnf.q)
             #    bboxes_info_true.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))
 
-            #utils.visualize_bboxes(img_original, bboxes_info_true, use_z=True, half_images=False, aug_info=aug_info,
+            # utils.visualize_bboxes(img_original, bboxes_info_true, use_z=True, half_images=False, aug_info=aug_info,
             #                       normalize_z=False)
 
         # print(f'({i}) Dataset example: x.shape={tuple(x.shape)}, y={y}')
 
-
-        utils.visualize_bboxes(img_original, bboxes_info_pred, use_z=True, half_images=True, aug_info=aug_info, normalize_z=False)
+        utils.visualize_bboxes(img_original, bboxes_info_pred, use_z=True, half_images=True, aug_info=aug_info,
+                               normalize_z=False)
 
 
 if __name__ == '__main__':

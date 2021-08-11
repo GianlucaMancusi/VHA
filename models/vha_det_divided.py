@@ -77,7 +77,7 @@ class Autoencoder(BaseModel):
             Upsample(mode='bilinear'),
             nn.ReLU(True),
             nn.Conv2d(in_channels=hmap_d // 2, out_channels=hmap_d, kernel_size=5, padding=2),
-            # nn.ReLU(True)
+            nn.ReLU(True)
         )
         self.decoder_w_h = deepcopy(self.decoder)
 
@@ -92,8 +92,7 @@ class Autoencoder(BaseModel):
     def encode(self, x):
         # type: (torch.Tensor) -> torch.Tensor
         # x.shape = batch, 3, h, w, c
-        x_c = x[:, 0, :, :, :]
-        x_c = x_c.squeeze(1).contiguous()
+        x_c = x[:, 0, :, :, :].contiguous()
         x_c = self.encoder(x_c)
 
         x_wh = x[:, 1:3, :, :, :]
@@ -112,8 +111,7 @@ class Autoencoder(BaseModel):
         x = self.defuser_c3d(x)
 
         # x.shape = batch, 3, h, w, c
-        x_c = x[:, 0, :, :, :]
-        x_c = x_c.squeeze(1).contiguous()
+        x_c = x[:, 0, :, :, :].contiguous()
         x_c = self.decoder(x_c)
 
         x_wh = x[:, 1:3, :, :, :]
@@ -141,7 +139,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     batch_size = 3
 
-    model = Autoencoder(legacy_pretrained=True).to(device)
+    model = Autoencoder(legacy_pretrained=False).to(device)
     model.train()
     model.requires_grad(True)
     print(model)

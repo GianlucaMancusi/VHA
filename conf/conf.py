@@ -70,7 +70,7 @@ class Conf(object):
         # read configuration parameters from YAML file
         # or set their default value
         self.model_input = str(y.get('MODEL_INPUT', 'joint'))  # type: str
-        self.detection_model = str(y.get('DETECTION_MODEL', 'c2d-shared'))  # type: str
+        self.detection_model = str(y.get('DETECTION_MODEL', 'c2d-divided-c3d-pretrained'))  # type: str
         self.loss_function = str(y.get('LOSS_FUNCTION', 'MSE'))  # type: str
         self.q = y.get('Q', 0.31746031746031744)  # type: float # --> quantization factor
         self.hmap_h = y.get('H', 128)  # type: int
@@ -102,7 +102,7 @@ class Conf(object):
         available_model_input = ['joint', 'detection', 'tracking']
         assert self.model_input in available_model_input, f'the specified MODEL_INPUT parameter "{self.model_input}" does not exist, it must be one of {available_model_input}'
 
-        available_detection_model = ['c2d-shared', 'c2d-divided', 'c2d-divided-c3d-pretrained']
+        available_detection_model = ['c2d-divided-c3d-pretrained', 'c3d-2', 'c2d-divided-scratch']
         assert self.detection_model in available_detection_model, f'the specified DETECTION_MODEL parameter "{self.detection_model}" does not exist, it must be one of {available_detection_model}'
 
         available_loss_functions = ['MSE', 'L1']
