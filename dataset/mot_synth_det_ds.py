@@ -18,8 +18,6 @@ from conf import Conf
 
 from utils import utils
 
-import platform
-
 # maximum MOTSynth camera distance [m]
 MAX_CAM_DIST = 100
 
@@ -50,22 +48,21 @@ class MOTSynthDetDS(Dataset):
         self.cnf = cnf
         assert self.mode in {'train', 'val', 'test'}, '`mode` must be \'train\' or \'val\''
 
-        is_windows = any(platform.win32_ver())
 
         self.mots_ds = None
         path_to_anns = None
 
         if self.mode == 'train':
-            if is_windows:
-                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '275.json')
+            if self.cnf.is_windows:
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '000.json')
                 # path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                 #                         'MOTSynth_annotations_10_test.json')
             else:
                 path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                                          'MOTSynth_annotations_10_train.json')
         if self.mode in ('val', 'test'):
-            if is_windows:  # '275.json'
-                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '275.json')
+            if self.cnf.is_windows:  # '275.json'
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '000.json')
                 # path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                 #                         'MOTSynth_annotations_10_test.json')
             else:
@@ -171,9 +168,9 @@ class MOTSynthDetDS(Dataset):
             # Update the center, width and height tensor
             self.geometric_gen.paste_tensor(x_centers, self.gaussian_patch, self.g, center)  # in place function
             self.geometric_gen.paste_tensor(x_width, self.sphere_patch, self.cnf.sphere_diameter,
-                                            center=center, mul_value=normalized_width, use_max=False)
+                                            center=center, mul_value=normalized_width, use_max=True)
             self.geometric_gen.paste_tensor(x_height, self.sphere_patch, self.cnf.sphere_diameter,
-                                            center=center, mul_value=normalized_height, use_max=False)
+                                            center=center, mul_value=normalized_height, use_max=True)
 
             y_coords3d.append([bbox['mean_x3d'], bbox['mean_y3d'], bbox['mean_z3d']])
             y_coords2d.append([int(round(cam_dist_in_map)),

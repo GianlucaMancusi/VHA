@@ -9,6 +9,7 @@ import torch
 import numpy as np
 from path import Path
 from typing import Optional
+import platform
 
 
 def set_seed(seed=None):
@@ -128,3 +129,5 @@ class Conf(object):
             self.best_val_f1 = ck['best_val_f1']
             if ck.get('optimizer', None) is not None:
                 self.optimizer_data = ck['optimizer']
+
+        self.is_windows = any(platform.win32_ver())

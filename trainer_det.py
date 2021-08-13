@@ -63,7 +63,7 @@ class TrainerDet(TrainerBase):
         # init train loader
         training_set = MOTSynthDetDS(mode='train', cnf=cnf)
         self.train_loader = DataLoader(
-            dataset=training_set, batch_size=cnf.batch_size, num_workers=cnf.n_workers, shuffle=True
+            dataset=training_set, batch_size=cnf.batch_size, num_workers=cnf.n_workers, shuffle=True if self.cnf.is_windows is False else False
         )
 
         # init val loader
@@ -141,29 +141,30 @@ class TrainerDet(TrainerBase):
 
             self.optimizer.step(None)
 
-            # log center, width, height losses
-            x_true_center, x_true_width, x_true_height = x[:, 0], x[:, 1], x[:, 2]
-            x_pred_center, x_pred_width, x_pred_height = y_pred[:, 0], y_pred[:, 1], y_pred[:, 2]
-            loss_center = loss_function(x_pred_center, x_true_center)
-            loss_width = loss_function(x_pred_width, x_true_width)
-            loss_height = loss_function(x_pred_height, x_true_height)
-            train_losses['center'].append(loss_center.item())
-            train_losses['width'].append(loss_width.item())
-            train_losses['height'].append(loss_height.item())
+            with torch.no_grad():
+                # log center, width, height losses
+                x_true_center, x_true_width, x_true_height = x[:, 0], x[:, 1], x[:, 2]
+                x_pred_center, x_pred_width, x_pred_height = y_pred[:, 0], y_pred[:, 1], y_pred[:, 2]
+                loss_center = loss_function(x_pred_center, x_true_center)
+                loss_width = loss_function(x_pred_width, x_true_width)
+                loss_height = loss_function(x_pred_height, x_true_height)
+                train_losses['center'].append(loss_center.item())
+                train_losses['width'].append(loss_width.item())
+                train_losses['height'].append(loss_height.item())
 
-            # print an incredible progress bar
-            progress = (step + 1) / self.cnf.epoch_len
-            progress_bar = ('█' * int(50 * progress)) + ('┈' * (50 - int(50 * progress)))
-            times.append(time() - t)
-            t = time()
-            if self.cnf.log_each_step or (not self.cnf.log_each_step and progress == 1):
-                print('\r[{}] Epoch {:0{e}d}.{:0{s}d}: │{}│ {:6.2f}% │ Loss: {:.6f} │ ↯: {:5.2f} step/s'.format(
-                    datetime.now().strftime("%m-%d@%H:%M"), self.current_epoch, step + 1,
-                    progress_bar, 100 * progress,
-                    np.mean(train_losses['all']), 1 / np.mean(times),
-                    e=math.ceil(math.log10(self.cnf.epochs)),
-                    s=math.ceil(math.log10(self.cnf.epoch_len)),
-                ), end='')
+                # print an incredible progress bar
+                progress = (step + 1) / self.cnf.epoch_len
+                progress_bar = ('█' * int(50 * progress)) + ('┈' * (50 - int(50 * progress)))
+                times.append(time() - t)
+                t = time()
+                if self.cnf.log_each_step or (not self.cnf.log_each_step and progress == 1):
+                    print('\r[{}] Epoch {:0{e}d}.{:0{s}d}: │{}│ {:6.2f}% │ Loss: {:.6f} │ ↯: {:5.2f} step/s'.format(
+                        datetime.now().strftime("%m-%d@%H:%M"), self.current_epoch, step + 1,
+                        progress_bar, 100 * progress,
+                        np.mean(train_losses['all']), 1 / np.mean(times),
+                        e=math.ceil(math.log10(self.cnf.epochs)),
+                        s=math.ceil(math.log10(self.cnf.epoch_len)),
+                    ), end='')
 
             if step >= self.cnf.epoch_len - 1:
                 break
