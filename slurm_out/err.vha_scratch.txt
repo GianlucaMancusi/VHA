@@ -1,1 +1,18 @@
-slurmstepd-bugo: error: *** JOB 1347668 ON bugo CANCELLED AT 2021-08-12T23:30:21 DUE TO TIME LIMIT ***
+Traceback (most recent call last):
+  File "main.py", line 53, in <module>
+    main()
+  File "/homes/matteo/.conda/envs/loco_env/lib/python3.7/site-packages/click/core.py", line 1137, in __call__
+    return self.main(*args, **kwargs)
+  File "/homes/matteo/.conda/envs/loco_env/lib/python3.7/site-packages/click/core.py", line 1062, in main
+    rv = self.invoke(ctx)
+  File "/homes/matteo/.conda/envs/loco_env/lib/python3.7/site-packages/click/core.py", line 1404, in invoke
+    return ctx.invoke(self.callback, **ctx.params)
+  File "/homes/matteo/.conda/envs/loco_env/lib/python3.7/site-packages/click/core.py", line 763, in invoke
+    return __callback(*args, **kwargs)
+  File "main.py", line 49, in main
+    trainer.run()
+  File "/nas/softechict-nas-3/matteo/PycharmProjects/gianlu/VHA/utils/trainer_base.py", line 34, in run
+    self.train()
+  File "/nas/softechict-nas-3/matteo/PycharmProjects/gianlu/VHA/trainer_det.py", line 167, in train
+    loss_center = loss_center or loss_function(x_pred_center, x_true_center)
+UnboundLocalError: local variable 'loss_center' referenced before assignment

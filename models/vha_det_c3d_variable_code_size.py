@@ -39,7 +39,7 @@ class Autoencoder(BaseModel):
     VHA: (V)olumetric (H)eatmap (A)utoencoder
     """
 
-    def __init__(self, hmap_d=316, legacy_pretrained=True):
+    def __init__(self, hmap_d=316, legacy_pretrained=True, code_size=2):
         # type: (int) -> None
         """
         :param hmap_d: number of input channels
@@ -47,10 +47,12 @@ class Autoencoder(BaseModel):
 
         super().__init__()
 
+        self.code_size = code_size
+
         self.fuser_c3d = nn.Sequential(
             nn.Conv3d(in_channels=3, out_channels=4, kernel_size=5, padding=2),
             nn.ReLU(True),
-            nn.Conv3d(in_channels=4, out_channels=2, kernel_size=5, padding=2),
+            nn.Conv3d(in_channels=4, out_channels=self.code_size, kernel_size=5, padding=2),
             nn.ReLU(True),
         )
 
@@ -67,7 +69,7 @@ class Autoencoder(BaseModel):
         # --------------
 
         self.defuser_c3d = nn.Sequential(
-            nn.Conv3d(in_channels=2, out_channels=4, kernel_size=5, padding=2),
+            nn.Conv3d(in_channels=self.code_size, out_channels=4, kernel_size=5, padding=2),
             nn.ReLU(True),
             nn.Conv3d(in_channels=4, out_channels=3, kernel_size=5, padding=2),
             nn.ReLU(True)
@@ -140,12 +142,15 @@ class Autoencoder(BaseModel):
         with torch.no_grad():
             self.fuser_c3d._modules['0'].weight = nn.Parameter(self.fuser._modules['0'].weight[:, :3, :, :, :].clone())
             self.fuser_c3d._modules['0'].bias = nn.Parameter(self.fuser._modules['0'].bias.clone())
-            self.fuser_c3d._modules['2'].weight = nn.Parameter(self.fuser._modules['2'].weight.repeat((2,1,1,1,1)).clone())
-            self.fuser_c3d._modules['2'].bias = nn.Parameter(self.fuser._modules['2'].bias.repeat(2).clone())
+            self.fuser_c3d._modules['2'].weight = nn.Parameter(
+                self.fuser._modules['2'].weight.repeat((self.code_size, 1, 1, 1, 1)).clone())
+            self.fuser_c3d._modules['2'].bias = nn.Parameter(self.fuser._modules['2'].bias.repeat(self.code_size).clone())
 
-            self.defuser_c3d._modules['0'].weight = nn.Parameter(self.defuser._modules['0'].weight.repeat((1,2,1,1,1)).clone())
+            self.defuser_c3d._modules['0'].weight = nn.Parameter(
+                self.defuser._modules['0'].weight.repeat((1, self.code_size, 1, 1, 1)).clone())
             self.defuser_c3d._modules['0'].bias = nn.Parameter(self.defuser._modules['0'].bias.clone())
-            self.defuser_c3d._modules['2'].weight = nn.Parameter(self.defuser._modules['2'].weight[:3, :, :, :, :].clone())
+            self.defuser_c3d._modules['2'].weight = nn.Parameter(
+                self.defuser._modules['2'].weight[:3, :, :, :, :].clone())
             self.defuser_c3d._modules['2'].bias = nn.Parameter(self.defuser._modules['2'].bias[:3].clone())
 
     def encode(self, x):

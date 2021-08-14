@@ -88,6 +88,10 @@ class Conf(object):
         self.data_augmentation = str(y.get('DATA_AUGMENTATION', 'no'))  # type: str # --> 'no': no data aug, 'images': only images, 'all', images and heatmap
         self.mot_synth_ann_path = y.get('MOTSYNTH_ANN_PATH', '. / motsynth')  # type: str
         self.mot_synth_path = y.get('MOTSYNTH_PATH', '. / motsynth')  # type: str
+        self.masked_loss_c = y.get('MASKED_LOSS_C', 1)
+        self.masked_loss_w = y.get('MASKED_LOSS_W', 1)
+        self.masked_loss_h = y.get('MASKED_LOSS_H', 1)
+        self.pretrained = str(y.get('PRETRAINED', 'yes'))
 
         if y.get('DEVICE', None) is not None and y['DEVICE'] != 'cpu':
             #os.environ['CUDA_VISIBLE_DEVICES'] = str(y.get('DEVICE').split(':')[1])
@@ -103,11 +107,15 @@ class Conf(object):
         available_model_input = ['joint', 'detection', 'tracking']
         assert self.model_input in available_model_input, f'the specified MODEL_INPUT parameter "{self.model_input}" does not exist, it must be one of {available_model_input}'
 
-        available_detection_model = ['c2d-divided-c3d-pretrained', 'c3d-2', 'c2d-divided-scratch']
+        available_detection_model = ['c2d-divided-c3d-pretrained', 'c3d-2', 'c3d-3', 'c2d-divided']
         assert self.detection_model in available_detection_model, f'the specified DETECTION_MODEL parameter "{self.detection_model}" does not exist, it must be one of {available_detection_model}'
 
-        available_loss_functions = ['MSE', 'L1']
+        available_loss_functions = ['MSE', 'L1', 'MASKED_MSE']
         assert self.loss_function in available_loss_functions, f'the specified LOSS_FUNCTION parameter "{self.loss_function}" does not exist, it must be one of {available_loss_functions}'
+
+        available_pretrained = ['no', 'yes']
+        assert self.pretrained in available_pretrained, f'the specified PRETRAINED parameter "{self.pretrained}" does not exist, it must be one of {available_pretrained}'
+        self.pretrained = True if self.pretrained == 'yes' else False
 
         self.mot_synth_ann_path = Path(self.mot_synth_ann_path)
         self.mot_synth_path = Path(self.mot_synth_path)
