@@ -101,23 +101,23 @@ class Autoencoder(BaseModel):
         )
 
         self.decoder = nn.Sequential(
-            nn.Conv2d(in_channels=hmap_d // d3, out_channels=hmap_d // d2, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d3, out_channels=hmap_d // d2, kernel_size=5, padding=2, stride=s3),
             Upsample(mode='bilinear'),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // d2, out_channels=hmap_d // d1, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d2, out_channels=hmap_d // d1, kernel_size=5, padding=2, stride=s2),
             Upsample(mode='bilinear'),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // d1, out_channels=hmap_d, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d1, out_channels=hmap_d, kernel_size=5, padding=2, stride=s1),
             nn.ReLU(True)
         )
         self.decoder_w_h = nn.Sequential(
-            nn.Conv2d(in_channels=hmap_d // d3, out_channels=hmap_d // d2, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d3, out_channels=hmap_d // d2, kernel_size=5, padding=2, stride=s3),
             Upsample(mode='bilinear'),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // d2, out_channels=hmap_d // d1, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d2, out_channels=hmap_d // d1, kernel_size=5, padding=2, stride=s2),
             Upsample(mode='bilinear'),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // d1, out_channels=hmap_d, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d1, out_channels=hmap_d, kernel_size=5, padding=2, stride=s1),
             nn.ReLU(True)
         )
 
@@ -172,7 +172,7 @@ def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     batch_size = 3
 
-    model = Autoencoder(legacy_pretrained=False).to(device)
+    model = Autoencoder(vha_version=1).to(device)
     model.train()
     model.requires_grad(True)
     print(model)
