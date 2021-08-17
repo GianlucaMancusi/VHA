@@ -166,6 +166,11 @@ class Autoencoder(BaseModel):
 
 
 def main():
+    """
+    H: 136
+    W: 240
+    D: 316
+    """
     from time import time
     from statistics import mean, stdev
 
@@ -185,7 +190,7 @@ def main():
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         print('\n--- ENCODER ---')
-        x = torch.rand((batch_size, 3, 316, 1080 // 8, 1920 // 8)).to(device)
+        x = torch.rand((batch_size, 3, 316, 136, 240)).to(device)
         start.record()
         y = model.encode(x)
         print(f'* input shape: {tuple(x.shape)}')
