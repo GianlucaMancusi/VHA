@@ -1,7 +1,5 @@
 # -*- coding: utf-8 -*-
 # ---------------------
-from copy import deepcopy
-
 import torch
 import torch.nn as nn
 from torch.nn.functional import interpolate
@@ -64,7 +62,14 @@ class Autoencoder(BaseModel):
             nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 4, kernel_size=5, stride=1, padding=2),
             nn.ReLU(True),
         )
-        self.encoder_w_h = deepcopy(self.encoder)
+        self.encoder_w_h = nn.Sequential(
+            nn.Conv2d(in_channels=hmap_d, out_channels=hmap_d // 2, kernel_size=5, stride=2, padding=2),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels=hmap_d // 2, out_channels=hmap_d // 4, kernel_size=5, stride=2, padding=2),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 4, kernel_size=5, stride=1, padding=2),
+            nn.ReLU(True),
+        )
 
         # --------------
 
@@ -85,7 +90,16 @@ class Autoencoder(BaseModel):
             nn.Conv2d(in_channels=hmap_d // 2, out_channels=hmap_d, kernel_size=5, padding=2),
             nn.ReLU(True)
         )
-        self.decoder_w_h = deepcopy(self.decoder)
+        self.decoder_w_h = nn.Sequential(
+            nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 4, kernel_size=5, padding=2),
+            Upsample(mode='bilinear'),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 2, kernel_size=5, padding=2),
+            Upsample(mode='bilinear'),
+            nn.ReLU(True),
+            nn.Conv2d(in_channels=hmap_d // 2, out_channels=hmap_d, kernel_size=5, padding=2),
+            nn.ReLU(True)
+        )
 
         # ===
         # === this is only to be loaded by the legacy pre-trained model weight (joints-version) that
@@ -110,7 +124,7 @@ class Autoencoder(BaseModel):
 
     def load_legacy_pretrained_weights(self):
         """
-        THIS DOC MUST BE CHANGED (IS OBSOLETE)
+        THIS DOC MUST BE CHANGED (IT IS OBSOLETE)
 
         Extract the useful weights from the VHA trained on the human pose estimation task (14 heatmaps for each joint),
         we will call it 14VHA.

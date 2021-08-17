@@ -37,15 +37,39 @@ class Upsample(nn.Module):
 class Autoencoder(BaseModel):
     """
     VHA: (V)olumetric (H)eatmap (A)utoencoder
+    VHAv1: (d1, d2, d3) = (1, 2, 2) and (s1, s2, s3) = (1, 2, 1);
+    VHAv2: (d1, d2, d3) = (2, 4, 4) and (s1, s2, s3) = (2, 2, 1);
+    VHAv3: (d1, d2, d3) = (2, 4, 8) and (s1, s2, s3) = (2, 2, 2);
     """
 
-    def __init__(self, hmap_d=316, legacy_pretrained=True):
+    def __init__(self, vha_version, hmap_d=316):
         # type: (int) -> None
         """
+        VHAv1: (d1, d2, d3) = (1, 2, 2) and (s1, s2, s3) = (1, 2, 1);
+        VHAv2: (d1, d2, d3) = (2, 4, 4) and (s1, s2, s3) = (2, 2, 1);
+        VHAv3: (d1, d2, d3) = (2, 4, 8) and (s1, s2, s3) = (2, 2, 2);
+        :param vha_version: Available versions = 1, 2, 3
         :param hmap_d: number of input channels
         """
 
         super().__init__()
+        d1, d2, d3, s1, s2, s3 = 0, 0, 0, 0, 0, 0
+        """
+        VHAv1: (d1, d2, d3) = (1, 2, 2) and (s1, s2, s3) = (1, 2, 1); 
+        VHAv2: (d1, d2, d3) = (2, 4, 4) and (s1, s2, s3) = (2, 2, 1);
+        VHAv3: (d1, d2, d3) = (2, 4, 8) and (s1, s2, s3) = (2, 2, 2);
+        """
+        assert 1 <= vha_version <= 3, "Available vha_version are 1, 2, 3."
+        if vha_version == 1:
+            d1, d2, d3 = (1, 2, 2)
+            s1, s2, s3 = (1, 2, 1)
+        elif vha_version == 2:
+            d1, d2, d3 = (2, 4, 4)
+            s1, s2, s3 = (2, 2, 1)
+        elif vha_version == 3:
+            d1, d2, d3 = (2, 4, 8)
+            s1, s2, s3 = (2, 2, 2)
+
 
         self.fuser_c3d = nn.Sequential(
             nn.Conv3d(in_channels=3, out_channels=1, kernel_size=5, padding=2),
@@ -53,19 +77,19 @@ class Autoencoder(BaseModel):
         )
 
         self.encoder = nn.Sequential(
-            nn.Conv2d(in_channels=hmap_d, out_channels=hmap_d // 2, kernel_size=5, stride=2, padding=2),
+            nn.Conv2d(in_channels=hmap_d, out_channels=hmap_d // d1, kernel_size=5, stride=s1, padding=2),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // 2, out_channels=hmap_d // 4, kernel_size=5, stride=2, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d1, out_channels=hmap_d // d2, kernel_size=5, stride=s2, padding=2),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 4, kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d2, out_channels=hmap_d // d3, kernel_size=5, stride=s3, padding=2),
             nn.ReLU(True),
         )
         self.encoder_w_h = nn.Sequential(
-            nn.Conv2d(in_channels=hmap_d, out_channels=hmap_d // 2, kernel_size=5, stride=2, padding=2),
+            nn.Conv2d(in_channels=hmap_d, out_channels=hmap_d // d1, kernel_size=5, stride=s1, padding=2),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // 2, out_channels=hmap_d // 4, kernel_size=5, stride=2, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d1, out_channels=hmap_d // d2, kernel_size=5, stride=s2, padding=2),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 4, kernel_size=5, stride=1, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d2, out_channels=hmap_d // d3, kernel_size=5, stride=s3, padding=2),
             nn.ReLU(True),
         )
 
@@ -77,33 +101,26 @@ class Autoencoder(BaseModel):
         )
 
         self.decoder = nn.Sequential(
-            nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 4, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d3, out_channels=hmap_d // d2, kernel_size=5, padding=2),
             Upsample(mode='bilinear'),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 2, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d2, out_channels=hmap_d // d1, kernel_size=5, padding=2),
             Upsample(mode='bilinear'),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // 2, out_channels=hmap_d, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d1, out_channels=hmap_d, kernel_size=5, padding=2),
             nn.ReLU(True)
         )
         self.decoder_w_h = nn.Sequential(
-            nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 4, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d3, out_channels=hmap_d // d2, kernel_size=5, padding=2),
             Upsample(mode='bilinear'),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // 4, out_channels=hmap_d // 2, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d2, out_channels=hmap_d // d1, kernel_size=5, padding=2),
             Upsample(mode='bilinear'),
             nn.ReLU(True),
-            nn.Conv2d(in_channels=hmap_d // 2, out_channels=hmap_d, kernel_size=5, padding=2),
+            nn.Conv2d(in_channels=hmap_d // d1, out_channels=hmap_d, kernel_size=5, padding=2),
             nn.ReLU(True)
         )
 
-        if legacy_pretrained:
-            self.load_legacy_pretrained_weights()
-
-    def load_legacy_pretrained_weights(self):
-        self.load_w('log/pretrained/best.pth', strict=False, map_location=torch.device('cpu'))
-        self.encoder_w_h.load_state_dict(self.encoder.state_dict(), strict=False)
-        self.decoder_w_h.load_state_dict(self.decoder.state_dict(), strict=False)
 
     def encode(self, x):
         # type: (torch.Tensor) -> torch.Tensor

@@ -1,16 +1,16 @@
-┏━━━━━━━━━━━━┓
-┃ VHA@vegeta ┃
-┗━━━━━━━━━━━━┛
+┏━━━━━━━━━━━━━━━━━━━━━━┓
+┃ VHA@aimagelab-srv-10 ┃
+┗━━━━━━━━━━━━━━━━━━━━━━┛
 
-▶ Starting Experiment 'vha_scratch' [seed: 7428]
+▶ Starting Experiment 'vha_scratch' [seed: 7068]
 Annotation path to load: /nas/softechict-nas-3/matteo/Datasets/MOTSynth_clean_2/annotation_groups/MOTSynth_annotations_10_train.json
 loading annotations into memory...
-Done (t=163.97s)
+Done (t=198.12s)
 creating index...
 index created!
 Annotation path to load: /nas/softechict-nas-3/matteo/Datasets/MOTSynth_clean_2/annotation_groups/MOTSynth_annotations_10_test.json
 loading annotations into memory...
-Done (t=50.11s)
+Done (t=62.80s)
 creating index...
 index created!
 tensorboard --logdir=/nas/softechict-nas-3/matteo/PycharmProjects/gianlu/VHA/log

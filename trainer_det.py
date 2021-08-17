@@ -154,7 +154,7 @@ class TrainerDet(TrainerBase):
                 loss_height = masked_mse_loss(x_pred_height, x_true_height, mask=mask_h)
                 c, w, h = self.cnf.masked_loss_c, self.cnf.masked_loss_w, self.cnf.masked_loss_h
                 print(f"loss_center={loss_center:.6f}, loss_width={loss_width:.6f}, loss_height={loss_height:.6f}")
-                loss = w * loss_width + h * loss_height
+                loss = c * loss_center + w * loss_width + h * loss_height
                 print(f"c*loss_center={c*loss_center:.6f}, w*loss_width={w*loss_width:.6f}, h*loss_height={h*loss_height:.6f}")
 
 
