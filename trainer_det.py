@@ -27,6 +27,7 @@ from models.vha_det_simple import Autoencoder as AutoencoderSimple
 from models.vha_det_divided import Autoencoder as AutoencoderDivided
 from models.vha_det_c3d_pretrained import Autoencoder as AutoencoderC3dPretrained
 from models.vha_det_c3d_variable_code_size import Autoencoder as AutoencoderC3dVariableCode
+from models.vha_det_variable_versions import Autoencoder as AutoencoderVariableVersions
 from utils.MaskedMSELoss import MaskedMSELoss
 from utils.trainer_base import TrainerBase
 
@@ -57,6 +58,9 @@ class TrainerDet(TrainerBase):
         if cnf.detection_model == 'c2d-divided-scratch':
             self.model = AutoencoderDivided(hmap_d=cnf.hmap_d, legacy_pretrained=pretrained_condition).to(
                 self.cnf.device)
+        if cnf.detection_model in ('vha_v1', 'vha_v2', 'vha_v3'):
+            version = int(cnf.detection_model.split('_')[1])
+            self.model = AutoencoderVariableVersions(vha_version=version).to(self.cnf.device)
         else:
             self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=pretrained_condition).to(
                 self.cnf.device)

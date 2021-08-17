@@ -107,7 +107,7 @@ class Conf(object):
         available_model_input = ['joint', 'detection', 'tracking']
         assert self.model_input in available_model_input, f'the specified MODEL_INPUT parameter "{self.model_input}" does not exist, it must be one of {available_model_input}'
 
-        available_detection_model = ['c2d-divided-c3d-pretrained', 'c3d-2', 'c3d-3', 'c2d-divided']
+        available_detection_model = ['c2d-divided-c3d-pretrained', 'c3d-2', 'c3d-3', 'c2d-divided', 'vha_v1', 'vha_v2', 'vha_v3']
         assert self.detection_model in available_detection_model, f'the specified DETECTION_MODEL parameter "{self.detection_model}" does not exist, it must be one of {available_detection_model}'
 
         available_loss_functions = ['MSE', 'L1', 'MASKED_MSE']
