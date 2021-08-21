@@ -59,7 +59,7 @@ class TrainerDet(TrainerBase):
             self.model = AutoencoderDivided(hmap_d=cnf.hmap_d, legacy_pretrained=pretrained_condition).to(
                 self.cnf.device)
         if cnf.detection_model in ('vha_v1', 'vha_v2', 'vha_v3'):
-            version = int(cnf.detection_model.split('_')[1])
+            version = int(cnf.detection_model.split('_v')[1])
             self.model = AutoencoderVariableVersions(vha_version=version).to(self.cnf.device)
         else:
             self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=pretrained_condition).to(
