@@ -142,13 +142,14 @@ class TrainerDet(TrainerBase):
             x_true_center, x_true_width, x_true_height = x[:, 0], x[:, 1], x[:, 2]
             x_pred_center, x_pred_width, x_pred_height = y_pred[:, 0], y_pred[:, 1], y_pred[:, 2]
 
+            loss_center, loss_width, loss_height = 0, 0, 0
+            loss_function = nn.MSELoss()
             if self.cnf.loss_function == 'MSE':
-                loss_function = nn.MSELoss()
                 loss = loss_function(y_pred, x)
-            if self.cnf.loss_function == 'L1':
+            elif self.cnf.loss_function == 'L1':
                 loss_function = nn.L1Loss()
                 loss = loss_function(y_pred, x)
-            if self.cnf.loss_function == 'MASKED_MSE':
+            elif self.cnf.loss_function == 'MASKED_MSE':
                 masked_mse_loss = MaskedMSELoss()
                 mse_loss = nn.MSELoss()
                 loss_center = mse_loss(x_pred_center, x_true_center)
@@ -159,8 +160,8 @@ class TrainerDet(TrainerBase):
                 c, w, h = self.cnf.masked_loss_c, self.cnf.masked_loss_w, self.cnf.masked_loss_h
                 print(f"loss_center={loss_center:.6f}, loss_width={loss_width:.6f}, loss_height={loss_height:.6f}")
                 loss = c * loss_center + w * loss_width + h * loss_height
-                print(f"c*loss_center={c*loss_center:.6f}, w*loss_width={w*loss_width:.6f}, h*loss_height={h*loss_height:.6f}")
-
+                print(
+                    f"c*loss_center={c * loss_center:.6f}, w*loss_width={w * loss_width:.6f}, h*loss_height={h * loss_height:.6f}")
 
             loss.backward()
             train_losses['all'].append(loss.item())
@@ -168,9 +169,9 @@ class TrainerDet(TrainerBase):
             self.optimizer.step(None)
 
             # log center, width, height losses
-            loss_center = loss_center or loss_function(x_pred_center, x_true_center)
-            loss_width = loss_width or loss_function(x_pred_width, x_true_width)
-            loss_height = loss_height or loss_function(x_pred_height, x_true_height)
+            loss_center = loss_function(x_pred_center, x_true_center)
+            loss_width = loss_function(x_pred_width, x_true_width)
+            loss_height = loss_function(x_pred_height, x_true_height)
             train_losses['center'].append(loss_center.item())
             train_losses['width'].append(loss_width.item())
             train_losses['height'].append(loss_height.item())
@@ -189,7 +190,7 @@ class TrainerDet(TrainerBase):
                     np.mean(train_losses['center']),
                     np.mean(train_losses['width']),
                     np.mean(train_losses['height']),
-                    1 / np.mean(times),
+                                                                                1 / np.mean(times),
                     e=math.ceil(math.log10(self.cnf.epochs)),
                     s=math.ceil(math.log10(self.cnf.epoch_len)),
                 ), end='')
@@ -230,6 +231,7 @@ class TrainerDet(TrainerBase):
             hmap_pred = self.model.forward(hmap_true)
 
             loss_function = nn.MSELoss()
+            loss_width, loss_height = 0, 0
             if self.cnf.loss_function == 'L1':
                 loss_function = nn.L1Loss()
 
@@ -251,11 +253,12 @@ class TrainerDet(TrainerBase):
                 loss_width = MaskedMSELoss()(x_pred_width, x_true_width, mask=mask_w)
                 loss_height = MaskedMSELoss()(x_pred_height, x_true_height, mask=mask_h)
                 c, w, h = self.cnf.masked_loss_c, self.cnf.masked_loss_w, self.cnf.masked_loss_h
-                print(f"[TEST] loss_center={loss_center:.6f}, loss_width={loss_width:.6f}, loss_height={loss_height:.6f}")
+                print(
+                    f"[TEST] loss_center={loss_center:.6f}, loss_width={loss_width:.6f}, loss_height={loss_height:.6f}")
                 print(f"[TEST] c*loss_center={c * loss_center:.6f}, w*loss_width={w * loss_width:.6f}, "
                       f"h*loss_height={h * loss_height:.6f}")
-            loss_width = loss_width or loss_function(x_true_width, x_pred_width)
-            loss_height = loss_height or loss_function(x_true_height, x_pred_height)
+            loss_width = loss_function(x_true_width, x_pred_width)
+            loss_height = loss_function(x_true_height, x_pred_height)
             val_losses['center'].append(loss_center.item())
             val_losses['width'].append(loss_width.item())
             val_losses['height'].append(loss_height.item())
@@ -269,7 +272,7 @@ class TrainerDet(TrainerBase):
             y_height_pred = []
             bboxes_info_pred = []
             bboxes_info_true = []
-            for center_coord in y_center_pred:   # y_center_pred
+            for center_coord in y_center_pred:  # y_center_pred
                 cam_dist, y2d, x2d = center_coord
 
                 width = float(x_pred_width[cam_dist, y2d, x2d])
