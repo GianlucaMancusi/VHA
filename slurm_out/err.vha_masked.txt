@@ -1,0 +1,9 @@
+WARNING:root:NaN or Inf found in input tensor.
+WARNING:root:NaN or Inf found in input tensor.
+WARNING:root:NaN or Inf found in input tensor.
+WARNING:root:NaN or Inf found in input tensor.
+WARNING:root:NaN or Inf found in input tensor.
+WARNING:root:NaN or Inf found in input tensor.
+WARNING:root:NaN or Inf found in input tensor.
+WARNING:root:NaN or Inf found in input tensor.
+slurmstepd-aimagelab-srv-10: error: *** JOB 1350626 ON aimagelab-srv-10 CANCELLED AT 2021-08-22T13:09:05 ***

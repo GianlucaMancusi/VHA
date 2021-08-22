@@ -269,7 +269,7 @@ class TrainerDet(TrainerBase):
             y_height_pred = []
             bboxes_info_pred = []
             bboxes_info_true = []
-            for center_coord in y_center_pred:
+            for center_coord in y_center_pred:   # y_center_pred
                 cam_dist, y2d, x2d = center_coord
 
                 width = float(x_pred_width[cam_dist, y2d, x2d])
@@ -352,6 +352,6 @@ class TrainerDet(TrainerBase):
         self.sw.add_scalar(tag='val_loss/height', scalar_value=mean_val_loss_height, global_step=self.current_epoch)
 
         # save best model
-        if self.best_val_f1_center is None or mean_val_f1_center < self.best_val_f1_center:
-            self.best_val_f1_center = mean_val_f1_center
+        if self.best_val_f1_center is None or mean_val_f1_iou < self.best_val_f1_center:
+            self.best_val_f1_center = mean_val_f1_iou
             torch.save(self.model.state_dict(), self.log_path / 'best.pth')

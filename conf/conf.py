@@ -30,7 +30,7 @@ def set_seed(seed=None):
 class Conf(object):
     HOSTNAME = socket.gethostname()
 
-    def __init__(self, conf_file_path=None, seed=None, exp_name=None, log=True):
+    def __init__(self, conf_file_path=None, seed=None, exp_name=None, log=True, preload_checkpoint=True):
         # type: (str, int, str, bool) -> None
         """
         :param conf_file_path: optional path of the configuration file
@@ -128,14 +128,16 @@ class Conf(object):
         self.optimizer_data = None
 
         # loading checkpoint data
-        ck_path = self.exp_log_path / 'training.ck'
-        if ck_path.exists():
-            ck = torch.load(ck_path, map_location=torch.device('cpu'))
-            print('[loading checkpoint \'{}\']'.format(ck_path))
-            self.saved_epoch = ck['epoch']
-            self.model_weights = ck['model']
-            self.best_val_f1 = ck['best_val_f1']
-            if ck.get('optimizer', None) is not None:
-                self.optimizer_data = ck['optimizer']
+
+        if preload_checkpoint:
+            ck_path = self.exp_log_path / 'training.ck'
+            if ck_path.exists():
+                ck = torch.load(ck_path, map_location=torch.device('cpu'))
+                print('[loading checkpoint \'{}\']'.format(ck_path))
+                self.saved_epoch = ck['epoch']
+                self.model_weights = ck['model']
+                self.best_val_f1 = ck['best_val_f1']
+                if ck.get('optimizer', None) is not None:
+                    self.optimizer_data = ck['optimizer']
 
         self.is_windows = any(platform.win32_ver())

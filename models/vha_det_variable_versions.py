@@ -166,11 +166,6 @@ class Autoencoder(BaseModel):
 
 
 def main():
-    """
-    H: 136
-    W: 240
-    D: 316
-    """
     from time import time
     from statistics import mean, stdev
 

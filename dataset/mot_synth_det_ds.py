@@ -269,9 +269,9 @@ def main():
         # w_max = max([float(x_width[cam_dist, y2d, x2d]) for cam_dist, y2d, x2d in y_center_pred])
         # h_min = min([float(x_height[cam_dist, y2d, x2d]) for cam_dist, y2d, x2d in y_center_pred])
         # h_max = max([float(x_height[cam_dist, y2d, x2d]) for cam_dist, y2d, x2d in y_center_pred])
-        for cam_dist, y2d, x2d in y_center:
-            width = float(x_pred_width[cam_dist, y2d, x2d])
-            height = float(x_pred_height[cam_dist, y2d, x2d])
+        for cam_dist, y2d, x2d in y_center_pred:
+            width = float(x_width[cam_dist, y2d, x2d])
+            height = float(x_height[cam_dist, y2d, x2d])
 
             # denormalize width and height
             width = int(round(width * MAX_WIDTH))

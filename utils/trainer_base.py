@@ -33,8 +33,9 @@ class TrainerBase(ABC):
             if self.cnf.epoch_len > 0:
                 self.train()
             # if e % 10 == 0 and e != 0:
-            if (self.cnf.is_windows and self.current_epoch % 128 == 0) or \
+            if (self.cnf.is_windows and self.current_epoch % 64 == 0) or \
                 (not self.cnf.is_windows and self.cnf.test_len > 0):
                 self.test()
             self.current_epoch += 1
-            self.save_ck()
+            if (self.cnf.is_windows and self.current_epoch % 512 == 0) or not self.cnf.is_windows:
+                self.save_ck()
