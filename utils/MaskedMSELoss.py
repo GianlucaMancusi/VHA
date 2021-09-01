@@ -7,4 +7,4 @@ class MaskedMSELoss(torch.nn.Module):
         super(MaskedMSELoss, self).__init__()
 
     def forward(self, predict: Tensor, target: Tensor, mask: Tensor) -> Tensor:
-        return torch.sum(((predict - target) * mask) ** 2.0) / torch.sum(mask)
+        return torch.sum(((predict - target) * mask) ** 2.0) / (torch.sum(mask) + 1e-10)

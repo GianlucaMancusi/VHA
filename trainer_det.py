@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 # ---------------------
 
-import importlib
 import json
 import math
 from datetime import datetime
@@ -13,21 +12,16 @@ from tensorboardX import SummaryWriter
 from torch import nn
 from torch import optim
 from torch.utils.data import DataLoader
-from torchvision import transforms
-import imgaug.augmenters as iaa
 
-import matplotlib.pyplot as plt
-
-from utils import utils
 from conf import Conf
-from dataset.mot_synth_ds import MOTSynthDS
 from dataset.mot_synth_det_ds import MOTSynthDetDS
-from test_metrics import joint_det_metrics, compute_det_metrics_iou
-from models.vha_det_simple import Autoencoder as AutoencoderSimple
-from models.vha_det_divided import Autoencoder as AutoencoderDivided
 from models.vha_det_c3d_pretrained import Autoencoder as AutoencoderC3dPretrained
 from models.vha_det_c3d_variable_code_size import Autoencoder as AutoencoderC3dVariableCode
+from models.vha_det_divided import Autoencoder as AutoencoderDivided
+from models.vha_det_simple import Autoencoder as AutoencoderSimple
 from models.vha_det_variable_versions import Autoencoder as AutoencoderVariableVersions
+from test_metrics import joint_det_metrics, compute_det_metrics_iou
+from utils import utils
 from utils.MaskedMSELoss import MaskedMSELoss
 from utils.trainer_base import TrainerBase
 
@@ -42,8 +36,6 @@ MAX_HEIGHT = 1079
 class TrainerDet(TrainerBase):
 
     def __init__(self, cnf):
-        # type: (Conf) -> TrainerJoint
-
         super().__init__(cnf)
 
         # init model
@@ -68,14 +60,14 @@ class TrainerDet(TrainerBase):
         # init optimizer
         self.optimizer = optim.Adam(params=self.model.parameters(), lr=cnf.lr)
 
-        # init train loader
+        # init train data_loader
         training_set = MOTSynthDetDS(mode='train', cnf=cnf)
         self.train_loader = DataLoader(
             dataset=training_set, batch_size=cnf.batch_size, num_workers=cnf.n_workers,
-            shuffle=True if self.cnf.is_windows is False else False
+            shuffle=True if not self.cnf.is_windows else False
         )
 
-        # init val loader
+        # init validation data_loader
         val_set = MOTSynthDetDS(mode='val', cnf=cnf)
         self.val_loader = DataLoader(
             dataset=val_set, batch_size=1, num_workers=cnf.n_workers, shuffle=False
@@ -90,7 +82,7 @@ class TrainerDet(TrainerBase):
 
         # starting values values
         self.current_epoch = 0
-        self.best_val_f1_center = None
+        self.best_val_f1 = None
 
         # possibly load checkpoint
         self.load_ck()
@@ -105,7 +97,7 @@ class TrainerDet(TrainerBase):
         if self.cnf.model_weights is not None:
             self.model.load_state_dict(self.cnf.model_weights, strict=False)
 
-        self.best_val_f1_center = self.cnf.best_val_f1
+        self.best_val_f1 = self.cnf.best_val_f1
         if self.cnf.optimizer_data is not None:
             self.optimizer.load_state_dict(self.cnf.optimizer_data)
 
@@ -117,7 +109,7 @@ class TrainerDet(TrainerBase):
             'epoch': self.current_epoch,
             'model': self.model.state_dict(),
             'optimizer': self.optimizer.state_dict(),
-            'best_val_f1': self.best_val_f1_center
+            'best_val_f1': self.best_val_f1
         }
         torch.save(ck, self.log_path / 'training.ck')
 
@@ -128,53 +120,58 @@ class TrainerDet(TrainerBase):
         self.model.train()
         self.model.requires_grad(True)
 
-        start_time = time()
+        start_time, t = time(), time()
         times = []
         train_losses = {'all': [], 'center': [], 'width': [], 'height': []}
-        t = time()
         for step, sample in enumerate(self.train_loader):
-            x, file_name, aug_info = sample
+            x_true, file_name, aug_info = sample
 
             self.optimizer.zero_grad()
-            x = x.to(self.cnf.device)
-            y_pred = self.model.forward(x)
+            x_true = x_true.to(self.cnf.device)
+            y_pred = self.model.forward(x_true)
 
-            x_true_center, x_true_width, x_true_height = x[:, 0], x[:, 1], x[:, 2]
+            x_true_center, x_true_width, x_true_height = x_true[:, 0], x_true[:, 1], x_true[:, 2]
             x_pred_center, x_pred_width, x_pred_height = y_pred[:, 0], y_pred[:, 1], y_pred[:, 2]
 
-            loss_center, loss_width, loss_height = 0, 0, 0
-            loss_function = nn.MSELoss()
             if self.cnf.loss_function == 'MSE':
-                loss = loss_function(y_pred, x)
+                loss_function = nn.MSELoss()
+                loss = loss_function(y_pred, x_true)
+                loss.backward()
+                self.optimizer.step(None)
+                train_losses['all'].append(loss.item())
+                # log center, width, height losses
+                loss_center = loss_function(x_pred_center, x_true_center)
+                loss_width = loss_function(x_pred_width, x_true_width)
+                loss_height = loss_function(x_pred_height, x_true_height)
+                train_losses['center'].append(loss_center.item())
+                train_losses['width'].append(loss_width.item())
+                train_losses['height'].append(loss_height.item())
             elif self.cnf.loss_function == 'L1':
                 loss_function = nn.L1Loss()
-                loss = loss_function(y_pred, x)
+                loss = loss_function(y_pred, x_true)
+                loss.backward()
+                self.optimizer.step(None)
+                train_losses['all'].append(loss.item())
+                # log center, width, height losses
+                loss_center = loss_function(x_pred_center, x_true_center)
+                loss_width = loss_function(x_pred_width, x_true_width)
+                loss_height = loss_function(x_pred_height, x_true_height)
+                train_losses['center'].append(loss_center.item())
+                train_losses['width'].append(loss_width.item())
+                train_losses['height'].append(loss_height.item())
             elif self.cnf.loss_function == 'MASKED_MSE':
-                masked_mse_loss = MaskedMSELoss()
-                mse_loss = nn.MSELoss()
-                loss_center = mse_loss(x_pred_center, x_true_center)
                 mask_w = torch.tensor(torch.where(x_true_width > 0, 1, 0), dtype=torch.float32, requires_grad=True)
                 mask_h = torch.tensor(torch.where(x_true_height > 0, 1, 0), dtype=torch.float32, requires_grad=True)
-                loss_width = masked_mse_loss(x_pred_width, x_true_width, mask=mask_w)
-                loss_height = masked_mse_loss(x_pred_height, x_true_height, mask=mask_h)
-                c, w, h = self.cnf.masked_loss_c, self.cnf.masked_loss_w, self.cnf.masked_loss_h
-                print(f"loss_center={loss_center:.6f}, loss_width={loss_width:.6f}, loss_height={loss_height:.6f}")
-                loss = c * loss_center + w * loss_width + h * loss_height
-                print(
-                    f"c*loss_center={c * loss_center:.6f}, w*loss_width={w * loss_width:.6f}, h*loss_height={h * loss_height:.6f}")
-
-            loss.backward()
-            train_losses['all'].append(loss.item())
-
-            self.optimizer.step(None)
-
-            # log center, width, height losses
-            loss_center = loss_function(x_pred_center, x_true_center)
-            loss_width = loss_function(x_pred_width, x_true_width)
-            loss_height = loss_function(x_pred_height, x_true_height)
-            train_losses['center'].append(loss_center.item())
-            train_losses['width'].append(loss_width.item())
-            train_losses['height'].append(loss_height.item())
+                loss_center = self.cnf.masked_loss_c * nn.MSELoss()(x_pred_center, x_true_center)
+                loss_width = self.cnf.masked_loss_w * MaskedMSELoss()(x_pred_width, x_true_width, mask=mask_w)
+                loss_height = self.cnf.masked_loss_h * MaskedMSELoss()(x_pred_height, x_true_height, mask=mask_h)
+                loss = loss_center + loss_width + loss_height
+                loss.backward()
+                self.optimizer.step(None)
+                train_losses['all'].append(loss.item())
+                train_losses['center'].append(loss_center.item())
+                train_losses['width'].append(loss_width.item())
+                train_losses['height'].append(loss_height.item())
 
             # print an incredible progress bar
             progress = (step + 1) / self.cnf.epoch_len
@@ -355,6 +352,6 @@ class TrainerDet(TrainerBase):
         self.sw.add_scalar(tag='val_loss/height', scalar_value=mean_val_loss_height, global_step=self.current_epoch)
 
         # save best model
-        if self.best_val_f1_center is None or mean_val_f1_iou < self.best_val_f1_center:
-            self.best_val_f1_center = mean_val_f1_iou
+        if self.best_val_f1 is None or mean_val_f1_iou < self.best_val_f1:
+            self.best_val_f1 = mean_val_f1_iou
             torch.save(self.model.state_dict(), self.log_path / 'best.pth')

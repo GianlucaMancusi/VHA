@@ -54,7 +54,7 @@ class MOTSynthDetDS(Dataset):
 
         if self.mode == 'train':
             if self.cnf.is_windows:
-                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '000.json')
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '498.json')
                 # path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                 #                         'MOTSynth_annotations_10_test.json')
             else:
@@ -62,7 +62,7 @@ class MOTSynthDetDS(Dataset):
                                          'MOTSynth_annotations_10_train.json')
         if self.mode in ('val', 'test'):
             if self.cnf.is_windows:  # '275.json'
-                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '000.json')
+                path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotations', '498.json')
                 # path_to_anns = path.join(self.cnf.mot_synth_ann_path, 'annotation_groups',
                 #                         'MOTSynth_annotations_10_test.json')
             else:
