@@ -13,6 +13,7 @@ from colour import Color
 
 from conf import Conf
 
+
 MAX_LS = np.array([0.27, 0.41, 0.67, 0.93, 0.41, 0.67, 0.92, 0.88, 1.28, 1.69, 0.88, 1.29, 1.70])
 
 

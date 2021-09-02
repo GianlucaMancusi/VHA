@@ -20,17 +20,29 @@ from models.vha_det_c3d_variable_code_size import Autoencoder as AutoencoderC3dV
 from models.vha_det_divided import Autoencoder as AutoencoderDivided
 from models.vha_det_simple import Autoencoder as AutoencoderSimple
 from models.vha_det_variable_versions import Autoencoder as AutoencoderVariableVersions
+from models.vha_matteo import Autoencoder
 from test_metrics import joint_det_metrics, compute_det_metrics_iou
 from utils import utils
 from utils.MaskedMSELoss import MaskedMSELoss
 from utils.trainer_base import TrainerBase
 
-# MEAN_WIDTH = 52.61727208688375
-# MEAN_HEIGHT = 116.20363004472165
-# STD_DEV_WIDTH = 102.74863634249581
-# STD_DEV_HEIGHT = 135.07407255355838
+MEAN_WIDTH = 52.61727208688375
+MEAN_HEIGHT = 116.20363004472165
+STD_DEV_WIDTH = 102.74863634249581
+STD_DEV_HEIGHT = 135.07407255355838
 MAX_WIDTH = 1919
 MAX_HEIGHT = 1079
+
+
+def masked_mse_loss(y_pred, y_true, binary_mask):
+    # type: (torch.Tensor, torch.Tensor, torch.Tensor) -> torch.Tensor
+    """
+    Masked mean squared error loss.
+    """
+    squared_errors = (y_true - y_pred) ** 2
+    masked_squared_errors = squared_errors * binary_mask
+    masked_mse = masked_squared_errors.sum() / (binary_mask.sum() + 1e-10)
+    return masked_mse
 
 
 class TrainerDet(TrainerBase):
@@ -40,22 +52,8 @@ class TrainerDet(TrainerBase):
 
         # init model
         pretrained_condition = cnf.pretrained and cnf.saved_epoch == 0
-        if cnf.detection_model == 'c2d-divided-c3d-pretrained':
-            self.model = AutoencoderC3dPretrained(hmap_d=cnf.hmap_d, legacy_pretrained=pretrained_condition).to(
-                self.cnf.device)
-        if cnf.detection_model == 'c3d-2' or cnf.detection_model == 'c3d-3':
-            code_size = int(cnf.detection_model.split('-')[1])
-            self.model = AutoencoderC3dVariableCode(hmap_d=cnf.hmap_d, legacy_pretrained=pretrained_condition,
-                                                    code_size=code_size).to(self.cnf.device)
-        if cnf.detection_model == 'c2d-divided-scratch':
-            self.model = AutoencoderDivided(hmap_d=cnf.hmap_d, legacy_pretrained=pretrained_condition).to(
-                self.cnf.device)
-        if cnf.detection_model in ('vha_v1', 'vha_v2', 'vha_v3'):
-            version = int(cnf.detection_model.split('_v')[1])
-            self.model = AutoencoderVariableVersions(vha_version=version).to(self.cnf.device)
-        else:
-            self.model = AutoencoderSimple(hmap_d=cnf.hmap_d, legacy_pretrained=pretrained_condition).to(
-                self.cnf.device)
+
+        self.model = Autoencoder(hmap_d=cnf.hmap_d, legacy_pretrained=False)
 
         # init optimizer
         self.optimizer = optim.Adam(params=self.model.parameters(), lr=cnf.lr)
@@ -64,13 +62,14 @@ class TrainerDet(TrainerBase):
         training_set = MOTSynthDetDS(mode='train', cnf=cnf)
         self.train_loader = DataLoader(
             dataset=training_set, batch_size=cnf.batch_size, num_workers=cnf.n_workers,
-            shuffle=True if not self.cnf.is_windows else False
+            worker_init_fn=MOTSynthDetDS.wif, shuffle=True
         )
 
         # init validation data_loader
         val_set = MOTSynthDetDS(mode='val', cnf=cnf)
         self.val_loader = DataLoader(
-            dataset=val_set, batch_size=1, num_workers=cnf.n_workers, shuffle=False
+            dataset=val_set, batch_size=1, num_workers=1, shuffle=False,
+            worker_init_fn=MOTSynthDetDS.wif_test
         )
 
         # init logging stuff
@@ -124,7 +123,7 @@ class TrainerDet(TrainerBase):
         times = []
         train_losses = {'all': [], 'center': [], 'width': [], 'height': []}
         for step, sample in enumerate(self.train_loader):
-            x_true, file_name, aug_info = sample
+            x_true, _, file_name, aug_info = sample
 
             self.optimizer.zero_grad()
             x_true = x_true.to(self.cnf.device)
@@ -133,45 +132,19 @@ class TrainerDet(TrainerBase):
             x_true_center, x_true_width, x_true_height = x_true[:, 0], x_true[:, 1], x_true[:, 2]
             x_pred_center, x_pred_width, x_pred_height = y_pred[:, 0], y_pred[:, 1], y_pred[:, 2]
 
-            if self.cnf.loss_function == 'MSE':
-                loss_function = nn.MSELoss()
-                loss = loss_function(y_pred, x_true)
-                loss.backward()
-                self.optimizer.step(None)
-                train_losses['all'].append(loss.item())
-                # log center, width, height losses
-                loss_center = loss_function(x_pred_center, x_true_center)
-                loss_width = loss_function(x_pred_width, x_true_width)
-                loss_height = loss_function(x_pred_height, x_true_height)
-                train_losses['center'].append(loss_center.item())
-                train_losses['width'].append(loss_width.item())
-                train_losses['height'].append(loss_height.item())
-            elif self.cnf.loss_function == 'L1':
-                loss_function = nn.L1Loss()
-                loss = loss_function(y_pred, x_true)
-                loss.backward()
-                self.optimizer.step(None)
-                train_losses['all'].append(loss.item())
-                # log center, width, height losses
-                loss_center = loss_function(x_pred_center, x_true_center)
-                loss_width = loss_function(x_pred_width, x_true_width)
-                loss_height = loss_function(x_pred_height, x_true_height)
-                train_losses['center'].append(loss_center.item())
-                train_losses['width'].append(loss_width.item())
-                train_losses['height'].append(loss_height.item())
-            elif self.cnf.loss_function == 'MASKED_MSE':
-                mask_w = torch.tensor(torch.where(x_true_width > 0, 1, 0), dtype=torch.float32, requires_grad=True)
-                mask_h = torch.tensor(torch.where(x_true_height > 0, 1, 0), dtype=torch.float32, requires_grad=True)
-                loss_center = self.cnf.masked_loss_c * nn.MSELoss()(x_pred_center, x_true_center)
-                loss_width = self.cnf.masked_loss_w * MaskedMSELoss()(x_pred_width, x_true_width, mask=mask_w)
-                loss_height = self.cnf.masked_loss_h * MaskedMSELoss()(x_pred_height, x_true_height, mask=mask_h)
-                loss = loss_center + loss_width + loss_height
-                loss.backward()
-                self.optimizer.step(None)
-                train_losses['all'].append(loss.item())
-                train_losses['center'].append(loss_center.item())
-                train_losses['width'].append(loss_width.item())
-                train_losses['height'].append(loss_height.item())
+            mask = (x_true_height != 0).float()
+            loss_center = self.cnf.masked_loss_c * nn.MSELoss()(x_pred_center, x_true_center)
+            loss_width = masked_mse_loss(x_pred_width, x_true_width, mask)
+            loss_height = masked_mse_loss(x_pred_height, x_true_height, mask)
+            # loss_width = self.cnf.masked_loss_w * MaskedMSELoss()(x_pred_width, x_true_width, mask=mask)
+            # loss_height = self.cnf.masked_loss_h * MaskedMSELoss()(x_pred_height, x_true_height, mask=mask)
+            loss = loss_center + loss_width + loss_height
+            loss.backward()
+            self.optimizer.step(None)
+            train_losses['all'].append(loss.item())
+            train_losses['center'].append(loss_center.item())
+            train_losses['width'].append(loss_width.item())
+            train_losses['height'].append(loss_height.item())
 
             # print an incredible progress bar
             progress = (step + 1) / self.cnf.epoch_len
@@ -227,35 +200,16 @@ class TrainerDet(TrainerBase):
 
             hmap_pred = self.model.forward(hmap_true)
 
-            loss_function = nn.MSELoss()
-            loss_width, loss_height = 0, 0
-            if self.cnf.loss_function == 'L1':
-                loss_function = nn.L1Loss()
-
-            loss = loss_function(hmap_pred, hmap_true)
-            val_losses['all'].append(loss.item())
+            x_true_center, x_true_width, x_true_height = hmap_true[0, 0], hmap_true[0, 1], hmap_true[0, 2]
+            x_pred_center, x_pred_width, x_pred_height = hmap_pred[0, 0], hmap_pred[0, 1], hmap_pred[0, 2]
 
             # log center, width, height losses
-            x_pred_center = hmap_pred[0, 0]
-            x_pred_width = hmap_pred[0, 1]
-            x_pred_height = hmap_pred[0, 2]
-            x_true_center = hmap_true[0, 0]
-            x_true_width = hmap_true[0, 1]
-            x_true_height = hmap_true[0, 2]
-            loss_center = loss_function(x_true_center, x_pred_center)
-            if self.cnf.loss_function == 'MASKED_MSE':
-                loss_center = nn.MSELoss()(x_pred_center, x_true_center)
-                mask_w = torch.tensor(torch.where(x_true_width > 0, 1, 0), dtype=torch.float32, requires_grad=True)
-                mask_h = torch.tensor(torch.where(x_true_height > 0, 1, 0), dtype=torch.float32, requires_grad=True)
-                loss_width = MaskedMSELoss()(x_pred_width, x_true_width, mask=mask_w)
-                loss_height = MaskedMSELoss()(x_pred_height, x_true_height, mask=mask_h)
-                c, w, h = self.cnf.masked_loss_c, self.cnf.masked_loss_w, self.cnf.masked_loss_h
-                print(
-                    f"[TEST] loss_center={loss_center:.6f}, loss_width={loss_width:.6f}, loss_height={loss_height:.6f}")
-                print(f"[TEST] c*loss_center={c * loss_center:.6f}, w*loss_width={w * loss_width:.6f}, "
-                      f"h*loss_height={h * loss_height:.6f}")
-            loss_width = loss_function(x_true_width, x_pred_width)
-            loss_height = loss_function(x_true_height, x_pred_height)
+            mask = torch.tensor(torch.where(x_true_height != 0, 1, 0), dtype=torch.float32)
+            loss_center = self.cnf.masked_loss_c * nn.MSELoss()(x_pred_center, x_true_center)
+            loss_width = self.cnf.masked_loss_w * MaskedMSELoss()(x_pred_width, x_true_width, mask=mask)
+            loss_height = self.cnf.masked_loss_h * MaskedMSELoss()(x_pred_height, x_true_height, mask=mask)
+            loss = loss_center + loss_width + loss_height
+            val_losses['all'].append(loss.item())
             val_losses['center'].append(loss_center.item())
             val_losses['width'].append(loss_width.item())
             val_losses['height'].append(loss_height.item())
@@ -268,7 +222,6 @@ class TrainerDet(TrainerBase):
             y_width_pred = []
             y_height_pred = []
             bboxes_info_pred = []
-            bboxes_info_true = []
             for center_coord in y_center_pred:  # y_center_pred
                 cam_dist, y2d, x2d = center_coord
 
@@ -276,8 +229,10 @@ class TrainerDet(TrainerBase):
                 height = float(x_pred_height[cam_dist, y2d, x2d])
 
                 # denormalize width and height
-                width = int(round(width * MAX_WIDTH))
-                height = int(round(height * MAX_HEIGHT))
+                width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))
+                height = int(round(height * STD_DEV_HEIGHT + MEAN_HEIGHT))
+                # width = int(round(width * MAX_WIDTH))
+                # height = int(round(height * MAX_HEIGHT))
 
                 y_width_pred.append((*center_coord, width))
                 y_height_pred.append((*center_coord, height))
@@ -285,7 +240,24 @@ class TrainerDet(TrainerBase):
                 x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=self.cnf.q)
                 bboxes_info_pred.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))
 
-            for cam_dist, y2d, x2d, width, height in y_true:
+            y_center_true = utils.local_maxima_3d(heatmap=x_true_center, threshold=0.1, device=self.cnf.device)
+            bboxes_info_true = []
+            for center_coord in y_center_true:
+
+                cam_dist, y2d, x2d = center_coord
+
+                width = float(x_pred_width[cam_dist, y2d, x2d])
+                height = float(x_pred_height[cam_dist, y2d, x2d])
+
+                # denormalize width and height
+                width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))
+                height = int(round(height * STD_DEV_HEIGHT + MEAN_HEIGHT))
+                # width = int(round(width * MAX_WIDTH))
+                # height = int(round(height * MAX_HEIGHT))
+
+                y_width_pred.append((*center_coord, width))
+                y_height_pred.append((*center_coord, height))
+
                 x2d, y2d, cam_dist = utils.rescale_to_real(x2d=x2d, y2d=y2d, cam_dist=cam_dist, q=self.cnf.q)
                 bboxes_info_true.append((x2d - width / 2, y2d - height / 2, width, height, cam_dist))
 
@@ -324,7 +296,7 @@ class TrainerDet(TrainerBase):
                 out_path = self.cnf.exp_log_path / f'{step}_bboxes_true.jpg'
                 utils.save_bboxes(img_original, bboxes_info_true, path=out_path, use_z=True, half_images=True)
 
-            if step >= self.cnf.test_len:
+            if step >= self.cnf.test_len - 1:
                 break
 
         # log average f1 on test set

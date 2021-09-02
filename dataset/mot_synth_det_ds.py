@@ -4,6 +4,8 @@
 import json
 from os import path
 from typing import *
+import random
+import time
 
 import numpy as np
 import torch
@@ -24,10 +26,10 @@ MAX_CAM_DIST = 100
 # camera intrinsic parameters: fx, fy, cx, cy
 CAMERA_PARAMS = 1158, 1158, 960, 540
 
-# MEAN_WIDTH = 52.61727208688375
-# MEAN_HEIGHT = 116.20363004472165
-# STD_DEV_WIDTH = 102.74863634249581
-# STD_DEV_HEIGHT = 135.07407255355838
+MEAN_WIDTH = 52.61727208688375
+MEAN_HEIGHT = 116.20363004472165
+STD_DEV_WIDTH = 102.74863634249581
+STD_DEV_HEIGHT = 135.07407255355838
 MAX_WIDTH = 1919
 MAX_HEIGHT = 1079
 
@@ -89,6 +91,10 @@ class MOTSynthDetDS(Dataset):
             r=self.cnf.sphere_diameter // 2, device='cpu'
         )
 
+        if mode == 'val':
+            random.Random(69).shuffle(self.imgIds)
+            self.imgIds = self.imgIds[:self.cnf.test_len]
+
     def __len__(self):
         # type: () -> int
         if self.mode == 'train':
@@ -108,7 +114,7 @@ class MOTSynthDetDS(Dataset):
         x_tensor, aug_info, _, y_coords2d = self.generate_3d_tensors(anns, augmentation=augmentation)
 
         if self.mode == 'train':
-            return x_tensor, img['file_name'], aug_info
+            return x_tensor, y_coords2d, img['file_name'], aug_info
         elif self.mode in ('val', 'test'):
             return x_tensor, y_coords2d, img['file_name'], aug_info
 
@@ -162,15 +168,17 @@ class MOTSynthDetDS(Dataset):
 
             width = bbox['width'] * aug_scale
             height = bbox['height'] * aug_scale
-            normalized_width = width / MAX_WIDTH
-            normalized_height = height / MAX_HEIGHT
+            normalized_width = (width - MEAN_WIDTH) / STD_DEV_WIDTH
+            normalized_height = (height - MEAN_HEIGHT) / STD_DEV_HEIGHT
+            # normalized_width = (width / MAX_WIDTH)
+            # normalized_height = (height / MAX_HEIGHT)
 
             # Update the center, width and height tensor
             self.geometric_gen.paste_tensor(x_centers, self.gaussian_patch, self.g, center)  # in place function
             self.geometric_gen.paste_tensor(x_width, self.sphere_patch, self.cnf.sphere_diameter,
-                                            center=center, mul_value=normalized_width, use_max=True)
+                                            center=center, mul_value=normalized_width, use_max=False)
             self.geometric_gen.paste_tensor(x_height, self.sphere_patch, self.cnf.sphere_diameter,
-                                            center=center, mul_value=normalized_height, use_max=True)
+                                            center=center, mul_value=normalized_height, use_max=False)
 
             y_coords3d.append([bbox['mean_x3d'], bbox['mean_y3d'], bbox['mean_z3d']])
             y_coords2d.append([int(round(cam_dist_in_map)),
@@ -221,29 +229,53 @@ class MOTSynthDetDS(Dataset):
                 })
         return bboxes
 
+    @staticmethod
+    def wif(worker_id):
+        # type: (int) -> None
+        """
+        Worker initialization function: set random seeds
+        :param worker_id: worker int ID
+        """
+        seed = (int(round(time.time() * 1000)) + worker_id) % (2**32 - 1)
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
+
+
+    @staticmethod
+    def wif_test(worker_id):
+        # type: (int) -> None
+        """
+        Worker initialization function: set random seeds
+        :param worker_id: worker int ID
+        """
+        seed = worker_id + 42
+        random.seed(seed)
+        np.random.seed(seed)
+        torch.manual_seed(seed)
 
 def main():
     from test_metrics import joint_det_metrics, compute_det_metrics_iou
-    cnf = Conf(exp_name='vha_d_debug')
+    cnf = Conf(exp_name='debug')
 
     # load dataset
-    mode = 'test'
+    mode = 'val'
     ds = MOTSynthDetDS(mode=mode, cnf=cnf)
     loader = DataLoader(dataset=ds, batch_size=1, num_workers=0, shuffle=False)
 
     # load model
-    from models.vha_det_c3d_pretrained import Autoencoder as AutoencoderC3dPretrained
-    model = AutoencoderC3dPretrained(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(cnf.device)
-    model.eval()
-    model.requires_grad(False)
-    if cnf.model_weights is not None:
-        model.load_state_dict(cnf.model_weights, strict=False)
+    # from models.vha_det_c3d_pretrained import Autoencoder as AutoencoderC3dPretrained
+    # model = AutoencoderC3dPretrained(hmap_d=cnf.hmap_d, legacy_pretrained=cnf.saved_epoch == 0).to(cnf.device)
+    # model.eval()
+    # model.requires_grad(False)
+    # if cnf.model_weights is not None:
+    #     model.load_state_dict(cnf.model_weights, strict=False)
 
     # ======== MAIN LOOP ========
     for i, sample in enumerate(loader):
         x, y, file_name, aug_info = None, None, None, None
 
-        if mode == 'test':
+        if mode == 'val' or mode == 'test':
             x, y, file_name, aug_info = sample
             y_true = json.loads(y[0])
         if mode == 'train':
@@ -251,8 +283,8 @@ def main():
         x = x.to(cnf.device)
         x_center, x_width, x_height = x[0, 0], x[0, 1], x[0, 2]
 
-        y_pred = model.forward(x)
-        x_pred_center, x_pred_width, x_pred_height = y_pred[0, 0], y_pred[0, 1], y_pred[0, 2]
+        # y_pred = model.forward(x)
+        # x_pred_center, x_pred_width, x_pred_height = y_pred[0, 0], y_pred[0, 1], y_pred[0, 2]
 
         if mode == 'test':
             y = json.loads(y[0])
@@ -274,8 +306,10 @@ def main():
             height = float(x_height[cam_dist, y2d, x2d])
 
             # denormalize width and height
-            width = int(round(width * MAX_WIDTH))
-            height = int(round(height * MAX_HEIGHT))
+            # width = int(round(width * MAX_WIDTH))
+            # height = int(round(height * MAX_HEIGHT))
+            width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))
+            height = int(round(height * STD_DEV_HEIGHT + MEAN_HEIGHT))
 
             y_width_pred.append((cam_dist, y2d, x2d, width))
             y_height_pred.append((cam_dist, y2d, x2d, height))
@@ -311,6 +345,8 @@ def main():
 
         utils.visualize_bboxes(img_original, bboxes_info_pred, use_z=True, half_images=True, aug_info=aug_info,
                                normalize_z=False)
+        # utils.visualize_bboxes(img_original, bboxes_info_true, use_z=True, half_images=True, aug_info=aug_info,
+        #                        normalize_z=False)
 
 
 if __name__ == '__main__':
