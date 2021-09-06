@@ -26,10 +26,10 @@ from utils import utils
 from utils.MaskedMSELoss import MaskedMSELoss
 from utils.trainer_base import TrainerBase
 
-MEAN_WIDTH = 52.61727208688375
-MEAN_HEIGHT = 116.20363004472165
-STD_DEV_WIDTH = 102.74863634249581
-STD_DEV_HEIGHT = 135.07407255355838
+MEAN_WIDTH = 65.7656005077149 # 52.61727208688375
+MEAN_HEIGHT = 145.25142926267972 # 116.20363004472165
+STD_DEV_WIDTH = 137.9245315121436 # 102.74863634249581
+STD_DEV_HEIGHT = 185.65746476128137 # 135.07407255355838
 MAX_WIDTH = 1919
 MAX_HEIGHT = 1079
 
@@ -85,6 +85,7 @@ class TrainerDet(TrainerBase):
 
         # possibly load checkpoint
         self.load_ck()
+        # self.load_previous()
 
         self.model.to(self.cnf.device)
 
@@ -99,6 +100,13 @@ class TrainerDet(TrainerBase):
         self.best_val_f1 = self.cnf.best_val_f1
         if self.cnf.optimizer_data is not None:
             self.optimizer.load_state_dict(self.cnf.optimizer_data)
+    
+    def load_previous(self):
+        ck_path = '/home/matteo/PycharmProjects/mancu/VHA/log/vha_s4/training.ck'
+        ck = torch.load(ck_path, map_location=torch.device('cpu'))
+        print('[loading checkpoint \'{}\']'.format(ck_path))
+        model_weights = ck['model']
+        self.model.load_state_dict(model_weights)
 
     def save_ck(self):
         """
@@ -246,8 +254,8 @@ class TrainerDet(TrainerBase):
 
                 cam_dist, y2d, x2d = center_coord
 
-                width = float(x_pred_width[cam_dist, y2d, x2d])
-                height = float(x_pred_height[cam_dist, y2d, x2d])
+                width = float(x_true_width[cam_dist, y2d, x2d])
+                height = float(x_true_height[cam_dist, y2d, x2d])
 
                 # denormalize width and height
                 width = int(round(width * STD_DEV_WIDTH + MEAN_WIDTH))

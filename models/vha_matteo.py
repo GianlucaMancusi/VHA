@@ -130,6 +130,38 @@ class Autoencoder(BaseModel):
         x = self.fuser_c3d(x)
         return x
 
+    def encode_slow(self, x):
+        x_c = x[:, 0, :, :, :]
+        x_c = self.encoder(x_c).unsqueeze(1)
+
+        x_w = x[:, 1, :, :, :]
+        x_w = self.encoder_w_h(x_w).unsqueeze(1)
+
+        x_h = x[:, 2, :, :, :]
+        x_h = self.encoder_w_h(x_h).unsqueeze(1)
+
+        x = torch.cat(tuple([x_c, x_w, x_h]), dim=1)
+        x = self.fuser_c3d(x)
+
+        return x
+
+    def decode_slow(self, x):
+        x = self.defuser_c3d(x)
+
+        x_c = x[:, 0, :, :, :]
+        x_c = self.decoder(x_c).unsqueeze(1)
+
+        x_w = x[:, 1, :, :, :]
+        x_w = self.decoder_w_h(x_w).unsqueeze(1)
+
+        x_h = x[:, 2, :, :, :]
+        x_h = self.decoder_w_h(x_h).unsqueeze(1)
+
+        x = torch.cat(tuple([x_c, x_w, x_h]), dim=1)
+
+        return x
+
+
     def decode(self, x):
         x = self.defuser_c3d(x)
 
@@ -147,8 +179,8 @@ class Autoencoder(BaseModel):
 
     def forward(self, x):
         # type: (torch.Tensor) -> torch.Tensor
-        x = self.encode(x)
-        x = self.decode(x)
+        x = self.encode_slow(x)
+        x = self.decode_slow(x)
         return x
 
 
@@ -171,18 +203,18 @@ def main():
 
     t_list = []
 
-    for i in range(200):
+    for i in range(10):
         start = torch.cuda.Event(enable_timing=True)
         end = torch.cuda.Event(enable_timing=True)
         print('\n--- ENCODER ---')
         x = torch.rand((batch_size, 3, 316, 1080 // 8, 1920 // 8)).to(device)
         start.record()
-        y = model.encode(x)
+        y = model.encode_slow(x)
         print(f'* input shape: {tuple(x.shape)}')
         print(f'* output shape: {tuple(y.shape)}')
 
         print('\n--- DECODER ---')
-        xd = model.decode(y)
+        xd = model.decode_slow(y)
         end.record()
         torch.cuda.synchronize()
         t_list.append(start.elapsed_time(end))

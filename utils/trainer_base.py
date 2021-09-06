@@ -29,6 +29,8 @@ class TrainerBase(ABC):
         """
         start model training procedure (train > test > checkpoint > repeat)
         """
+        # self.test()
+        # exit()
         for e in range(self.current_epoch, self.cnf.epochs):
             if self.cnf.epoch_len > 0:
                 self.train()

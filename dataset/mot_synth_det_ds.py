@@ -26,10 +26,10 @@ MAX_CAM_DIST = 100
 # camera intrinsic parameters: fx, fy, cx, cy
 CAMERA_PARAMS = 1158, 1158, 960, 540
 
-MEAN_WIDTH = 52.61727208688375
-MEAN_HEIGHT = 116.20363004472165
-STD_DEV_WIDTH = 102.74863634249581
-STD_DEV_HEIGHT = 135.07407255355838
+MEAN_WIDTH = 65.7656005077149 # 52.61727208688375
+MEAN_HEIGHT = 145.25142926267972 # 116.20363004472165
+STD_DEV_WIDTH = 137.9245315121436 # 102.74863634249581
+STD_DEV_HEIGHT = 185.65746476128137 # 135.07407255355838
 MAX_WIDTH = 1919
 MAX_HEIGHT = 1079
 
@@ -261,7 +261,7 @@ def main():
     # load dataset
     mode = 'val'
     ds = MOTSynthDetDS(mode=mode, cnf=cnf)
-    loader = DataLoader(dataset=ds, batch_size=1, num_workers=0, shuffle=False)
+    loader = DataLoader(dataset=ds, batch_size=1, num_workers=1, shuffle=False, worker_init_fn=MOTSynthDetDS.wif_test)
 
     # load model
     # from models.vha_det_c3d_pretrained import Autoencoder as AutoencoderC3dPretrained
