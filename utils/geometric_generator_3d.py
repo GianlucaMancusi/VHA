@@ -39,7 +39,11 @@ class GeometricGenerator3D:
                     tensor_to_paste[gza:gzb + 1, gya:gyb + 1, gxa:gxb + 1].unsqueeze(0) * mul_value
                 ])), 0)[0]
         else:
-            x[za:zb + 1, ya:yb + 1, xa:xb + 1] = tensor_to_paste[gza:gzb + 1, gya:gyb + 1, gxa:gxb + 1] * mul_value
+            b = x[za:zb + 1, ya:yb + 1, xa:xb + 1]
+            f = tensor_to_paste[gza:gzb + 1, gya:gyb + 1, gxa:gxb + 1].clone() * mul_value
+            f[torch.isnan(f)] = b[torch.isnan(f)]
+            x[za:zb + 1, ya:yb + 1, xa:xb + 1] = f
+            # x[za:zb + 1, ya:yb + 1, xa:xb + 1] = tensor_to_paste[gza:gzb + 1, gya:gyb + 1, gxa:gxb + 1] * mul_value
 
     def gen_3d_spheres(self, positions, values):
         pass
@@ -90,4 +94,8 @@ class GeometricGenerator3D:
         y0 = center[1]
         z0 = center[2]
 
-        return torch.where((x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 <= r ** 2, 1, 0)
+        res = torch.where((x - x0) ** 2 + (y - y0) ** 2 + (z - z0) ** 2 <= r ** 2, 1, 0)
+        res = torch.tensor(res, dtype=torch.float32)
+        res[res==0] = float('nan')
+
+        return res
